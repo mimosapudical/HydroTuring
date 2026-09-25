@@ -7,7 +7,7 @@ description: >
   non-equilibrium state. Daily cases retain the settled-state path; sub-daily
   cases continuously advance the same equations through each output interval
   and report the interior gauge. It never evaluates or inverts the Manning
-  normal-depth formula. It never evaluates or inverts the Manning normal-depth formula.
+  normal-depth formula.
 authors: ["HydroTuring maintainers"]
 license: PolyForm-Noncommercial-1.0.0
 runner: subprocess
