@@ -8,10 +8,10 @@ slower in longer reaches?
 ## Experiment
 
 For each seed, the generator draws one mild prismatic rectangular reach
-geometry and creates three positive base discharges: 8, 16 and 32 m3/s. Each
-state is run twice with byte-identical forcing, once at 4 km and once at 20 km.
-After twenty days of spinup and one scored day at the base state, a six-hour
-5% inflow pulse is applied. The case also supplies a small 80 mm soil capacity
+geometry and creates three positive base discharges: 8, 16 and 32 m3/s. Only two model runs are needed per seed: a 4 km `short` reach and a 20 km
+`long` reach with byte-identical forcing. Inside each run, low, medium and high
+hydraulic states occupy successive eight-day blocks. Each block gets four days
+to settle, then a six-hour +5% pulse and more than three days of response tail. The case also supplies a small 80 mm soil capacity
 and 1.5 mm canopy capacity so a full hydrologic model can settle before the
 routing transient is timed, rather than leaving a slowly filling catchment
 store inside the response centroid.
@@ -29,9 +29,11 @@ positive transient response, and estimates
 c_obs = Delta x / (t_long - t_short).
 ```
 
-Differencing the paired reaches cancels the common forcing and runoff-generation
-clock. The generated record is hourly so timing quantisation is much smaller
-than the travel-time difference.
+For each hydraulic state, differencing the paired reaches cancels the common
+forcing and runoff-generation clock. A 72-hour local response window ends
+before the next state transition, so the following plateau cannot pull the
+previous pulse centroid downstream. The generated record is hourly so timing
+quantisation is smaller than the short/long travel-time difference.
 
 ## Independent expectation
 
