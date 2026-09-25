@@ -1,0 +1,56 @@
+name: wave-celerity-diagnose
+
+on:
+  pull_request:
+    paths:
+      - 'probes/momentum/wave-celerity-bounds/**'
+      - 'src/hydroturing/criteria/**'
+      - 'models/reference_saint_venant/**'
+      - 'models/reference_fixed_celerity/**'
+      - 'models/lisflood/**'
+      - 'tests/test_wave_celerity_bounds.py'
+      - '.github/workflows/wave-celerity-diagnose.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install
+        run: pip install -e '.[dev]'
+      - name: Validate and focused tests
+        run: |
+          ht validate
+          pytest -q tests/test_wave_celerity_bounds.py tests/test_report_detail.py
+      - name: Diagnose Saint-Venant reference
+        run: |
+          set +e
+          rm -f /tmp/ref-wave.csv
+          ht run --model reference_saint_venant \
+            --probe momentum/wave-celerity-bounds \
+            --gate-seeds \
+            --csv /tmp/ref-wave.csv
+          rc=$?
+          echo "REFERENCE_RC=$rc"
+          [ -f /tmp/ref-wave.csv ] && cat /tmp/ref-wave.csv
+          exit 0
+      - name: Diagnose LISFLOOD independently
+        run: |
+          set +e
+          rm -f /tmp/lis-wave.csv
+          ht run --model lisflood \
+            --probe momentum/wave-celerity-bounds \
+            --gate-seeds \
+            --csv /tmp/lis-wave.csv
+          rc=$?
+          echo "LISFLOOD_RC=$rc"
+          [ -f /tmp/lis-wave.csv ] && cat /tmp/lis-wave.csv
+          exit 0
