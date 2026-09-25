@@ -107,20 +107,18 @@ def test_rectangular_celerity_is_the_analytic_manning_derivative():
     )
     width = 100.0
     depth = 0.8
-    discharge = 20.0
-    exact = module._rectangular_celerity(discharge, depth, width)
+    slope = 0.0015
+    roughness = 0.035
+    exact = module._rectangular_celerity(depth, width, slope, roughness)
 
-    # Differentiate Q(A) numerically while holding n and S fixed. The common
-    # Manning prefactor cancels after calibrating it at the chosen state.
+    # Differentiate the declared Manning Q(A) numerically while holding n and
+    # S fixed; this must match the analytic expression used by the criterion.
     area = width * depth
-    perimeter = width + 2.0 * depth
-    radius = area / perimeter
-    factor = discharge / (area * radius ** (2.0 / 3.0))
 
     def rating(a):
         d = a / width
         r = a / (width + 2.0 * d)
-        return factor * a * r ** (2.0 / 3.0)
+        return a * r ** (2.0 / 3.0) * slope ** 0.5 / roughness
 
     eps = 1.0e-4 * area
     finite_difference = (rating(area + eps) - rating(area - eps)) / (2.0 * eps)
