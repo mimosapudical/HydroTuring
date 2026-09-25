@@ -68,7 +68,7 @@ not.
 
 ## The probes
 
-Thirty-two: twenty-one under mass, seven under energy and four under momentum.
+Thirty-three: twenty-one under mass, seven under energy and five under momentum.
 Each was merged only after the acceptance gate saw it pass its declared
 exact reference and fail a purpose-built broken one on the named criterion.
 Four physical models, a bucket that conserves water exactly, two
@@ -78,12 +78,12 @@ the groundwater-exchange probe need outputs they do not report and are not
 scored for them; `mass/snowpack-mass-closure` scores only `sacsma_snow17`,
 the one physical model that reports `snm`. A probe that fails a
 physical model is examined before the model is; that is the first thing done
-with any probe pull request. Twelve of the thirty-two require no model output
+with any probe pull request. Twelve of the thirty-three require no model output
 beyond runoff. That output-only count includes `momentum/routing-lag-consistency`,
 which is eligible only when the model also declares that it consumes `pr` and
 the three geometry inputs `area_km2`, `main_channel_length_km` and
 `centroid_channel_length_km`. `ht list` prints the probes;
-[ROADMAP.md](ROADMAP.md#probes-we-want) has the five more we want, all
+[ROADMAP.md](ROADMAP.md#probes-we-want) has the four more we want, all
 unclaimed.
 
 | Probe | Law | What it asks | The broken model it catches |
@@ -121,6 +121,7 @@ unclaimed.
 | [`momentum/routing-lag-consistency`](probes/momentum/routing-lag-consistency) | momentum | The same isolated storm crosses four synthetic catchment geometries: does the runoff peak lie on a broad Snyder travel-time scale and grow across the geometry ladder? | `reference_instant_router`, `reference_inverse_router` |
 | [`momentum/stage-discharge-monotonic`](probes/momentum/stage-discharge-monotonic) | momentum | Does the stage a model reports rise with its discharge, and does the rating loop the way a flood wave does, the rising limb sitting lower than the falling one at the same discharge? | `reference_rating_drift`, `reference_rating_inverted`, `reference_flat_stage` |
 | [`momentum/uniform-flow-friction-consistency`](probes/momentum/uniform-flow-friction-consistency) | momentum | At steady uniform flow, do reported discharge and stage satisfy one Manning balance with the declared reach geometry and roughness? | `reference_wrong_roughness`, `reference_wrong_slope` |
+| [`momentum/wave-celerity-bounds`](probes/momentum/wave-celerity-bounds) | momentum | Across low, medium and high hydraulic states, does a short/long reach pair imply positive flood-wave celerity near the declared Manning dQ/dA expectation, with speed increasing as flow rises? | `reference_fixed_celerity` |
 
 ## Models
 
@@ -228,9 +229,10 @@ the probe cannot ask the declared model interface this question.
 | `reference_rating_inverted` | broken | reads the loop backwards, high while the flood is arriving and low once it is leaving: monotone in discharge, so only the loop sees it | caught by `rating_loop` |
 | `reference_flat_stage` | broken | reports a constant stage, so there is no rating and no loop, only a number that does not vary | caught by `non_degenerate` |
 | `reference_uniform_flow` | exact | converts constant effective rainfall to discharge and solves exact rectangular Manning normal depth above the declared bed | must pass `uniform_flow_friction` |
-| `reference_saint_venant` | exact | advances one-dimensional continuity and momentum with a finite-volume solver from a non-equilibrium state; no normal-depth lookup | must pass `uniform_flow_friction` |
+| `reference_saint_venant` | exact | advances one-dimensional continuity and momentum with a finite-volume solver from a non-equilibrium state; its sub-daily path continuously propagates transients; no normal-depth lookup | must pass `uniform_flow_friction` and `wave_celerity_bounds` |
 | `reference_wrong_roughness` | broken | computes stage with Manning roughness 3% above the declared value, a 5.74% near-boundary residual | caught by `uniform_flow_friction` |
 | `reference_wrong_slope` | broken | computes stage with bed slope 6% above the declared value, a 6% near-boundary residual | caught by `uniform_flow_friction` |
+| `reference_fixed_celerity` | broken | transports every hydraulic state downstream at the same fixed 1 m/s, so length-dependent lag exists but celerity never responds to flow | caught by `wave_celerity_bounds` |
 | `reference_streamflow_only` | honest limit | reports discharge only, from a store that never reads the temperature | N/A (INCOMPLETE) on budget probes; caught by `response_sign` |
 | `reference_in_sample` | broken | removes surface runoff above a fixed 55 mm daily precipitation cutoff | caught by `event_water_closure` |
 | `reference_calendar` | broken | a recession that drifts with the calendar year | caught by `invariance` (time origin) |
