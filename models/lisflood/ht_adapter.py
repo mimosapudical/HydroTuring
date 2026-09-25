@@ -657,7 +657,8 @@ def simulate(forcing: list[dict], static: dict, timestep: str) -> tuple[list[dic
             "cell_length_m": CELL_LENGTH_M,
             "cell_area_km2": CELL_AREA_M2 / 1.0e6,
             "channel_length_m": float(static.get("reach_length_m", CHANNEL_LENGTH_M)),
-            "source": ("static.json reach_length_m" if "reach_length_m" in static else\n                       "the shipped test catchment\'s 5 km grid; chanlength median"),
+            "source": ("static.json reach_length_m" if "reach_length_m" in static else
+                       "the shipped test catchment's 5 km grid; chanlength median"),
             "ldd": "pit with a channel",
             "land_use": "rainfed 'other' fraction 1.0",
             "catchment_area_km2": area_km2,
