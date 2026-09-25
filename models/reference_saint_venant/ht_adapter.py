@@ -23,6 +23,7 @@ import argparse
 import csv
 import json
 import math
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -31,6 +32,7 @@ MODEL = {"name": "reference_saint_venant", "version": "1.0.0"}
 SECONDS_PER_DAY = 86400.0
 GRAVITY = 9.80665
 N_CELLS = 64
+TRANSIENT_CELLS = 256
 CFL = 0.45
 MIN_DEPTH_M = 1.0e-4
 MAX_STEPS = 120_000
@@ -70,12 +72,17 @@ def _advance(
     slope: float,
     manning_n: float,
     dx_m: float,
+    max_dt_s: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray, float]:
     """Advance one CFL-limited finite-volume step."""
     speed = np.max(
         np.abs(unit_discharge / depth) + np.sqrt(GRAVITY * depth)
     )
     dt_s = CFL * dx_m / max(float(speed), 1.0e-6)
+    if max_dt_s is not None:
+        if max_dt_s <= 0.0:
+            raise ValueError("max_dt_s must be positive")
+        dt_s = min(dt_s, max_dt_s)
 
     h_ext = np.empty(len(depth) + 2, dtype=float)
     q_ext = np.empty(len(depth) + 2, dtype=float)
@@ -204,6 +211,116 @@ def solve_steady_reach(
     return depth, unit_discharge, diagnostics
 
 
+def _forcing_step_seconds(forcing: list[dict]) -> float:
+    """Infer a constant output interval from ISO timestamps."""
+    if len(forcing) < 2:
+        raise ValueError("Saint-Venant transient solve needs at least two rows")
+    times = [datetime.fromisoformat(row["time"]) for row in forcing[:3]]
+    dt_s = (times[1] - times[0]).total_seconds()
+    if dt_s <= 0:
+        raise ValueError("forcing timestamps must increase")
+    if len(times) == 3:
+        second = (times[2] - times[1]).total_seconds()
+        if not math.isclose(second, dt_s, rel_tol=0.0, abs_tol=1.0e-9):
+            raise ValueError("Saint-Venant transient solve needs a constant timestep")
+    return dt_s
+
+
+def _inflow_m3s(item: dict, area_km2: float) -> float:
+    effective_mm_day = max(float(item["pr"]) - float(item["pet"]), 0.0)
+    return effective_mm_day * 1.0e-3 * area_km2 * 1.0e6 / SECONDS_PER_DAY
+
+
+def simulate_transient(
+    forcing: list[dict], static: dict, output_step_s: float
+) -> tuple[list[dict], list[dict]]:
+    """Advance one continuous Saint-Venant state through sub-daily forcing."""
+    area_km2 = float(static["area_km2"])
+    width_m = float(static["width_m"])
+    bed_m = float(static["bed_elevation_m"])
+    slope = float(static["slope"])
+    manning_n = float(static["manning_n"])
+    reach_length_m = float(static["reach_length_m"])
+    shape = str(static.get("cross_section_shape", "rectangular")).strip().lower()
+    if shape != "rectangular":
+        raise ValueError("reference_saint_venant requires a rectangular section")
+
+    base_inflow = _inflow_m3s(forcing[0], area_km2)
+    if base_inflow <= 0.0:
+        raise ValueError("the generated Saint-Venant reach must stay wet")
+
+    # Reach the base state with the same equations, first on the established
+    # 64-cell grid and then on the production 256-cell transient grid. The
+    # interpolation is only an initial guess; the fine state is relaxed again
+    # before any transient is measured.
+    coarse_h, coarse_q, coarse_diag = solve_steady_reach(
+        base_inflow, width_m, slope, manning_n, reach_length_m, n_cells=N_CELLS
+    )
+    x_coarse = (np.arange(N_CELLS, dtype=float) + 0.5) / N_CELLS
+    x_fine = (np.arange(TRANSIENT_CELLS, dtype=float) + 0.5) / TRANSIENT_CELLS
+    fine_guess = (
+        np.interp(x_fine, x_coarse, coarse_h),
+        np.interp(x_fine, x_coarse, coarse_q),
+    )
+    depth, unit_discharge, fine_diag = solve_steady_reach(
+        base_inflow,
+        width_m,
+        slope,
+        manning_n,
+        reach_length_m,
+        initial_state=fine_guess,
+        n_cells=TRANSIENT_CELLS,
+    )
+    coarse_diag["phase"] = "coarse_initialization"
+    fine_diag["phase"] = "fine_initialization"
+
+    dx_m = reach_length_m / TRANSIENT_CELLS
+    center = TRANSIENT_CELLS // 2
+    rows: list[dict] = []
+    advance_steps = 0
+    for item in forcing:
+        inflow = _inflow_m3s(item, area_km2)
+        if inflow <= 0.0:
+            raise ValueError("the generated Saint-Venant reach must stay wet")
+        prescribed_q = inflow / width_m
+        remaining = output_step_s
+        discharge_integral = 0.0
+        stage_integral = 0.0
+        while remaining > 1.0e-9:
+            depth, unit_discharge, dt_s = _advance(
+                depth,
+                unit_discharge,
+                prescribed_q,
+                width_m,
+                slope,
+                manning_n,
+                dx_m,
+                max_dt_s=remaining,
+            )
+            remaining -= dt_s
+            advance_steps += 1
+            discharge_integral += width_m * float(unit_discharge[center]) * dt_s
+            stage_integral += (bed_m + float(depth[center])) * dt_s
+        rows.append({
+            "time": item["time"],
+            "dis": discharge_integral / output_step_s,
+            "stage": stage_integral / output_step_s,
+        })
+
+    diagnostics = [
+        coarse_diag,
+        fine_diag,
+        {
+            "phase": "transient",
+            "cells": TRANSIENT_CELLS,
+            "output_step_s": output_step_s,
+            "advance_steps": advance_steps,
+            "cfl": CFL,
+        },
+    ]
+    return rows, diagnostics
+
+
 def simulate(forcing: list[dict], static: dict) -> tuple[list[dict], list[dict]]:
     area_km2 = float(static["area_km2"])
     width_m = float(static["width_m"])
@@ -222,8 +339,7 @@ def simulate(forcing: list[dict], static: dict) -> tuple[list[dict], list[dict]]
     solves: list[dict] = []
     rows: list[dict] = []
     for item in forcing:
-        effective_mm_day = max(float(item["pr"]) - float(item["pet"]), 0.0)
-        inflow = effective_mm_day * 1.0e-3 * area_km2 * 1.0e6 / SECONDS_PER_DAY
+        inflow = _inflow_m3s(item, area_km2)
         if inflow <= 0.0:
             raise ValueError("the generated Saint-Venant reach must stay wet")
 
@@ -262,7 +378,11 @@ def main() -> int:
     with open(io_dir / request["input"]["forcing"], newline="") as fh:
         forcing = list(csv.DictReader(fh))
     static = json.loads((io_dir / request["input"]["static"]).read_text())
-    rows, solves = simulate(forcing, static)
+    output_step_s = _forcing_step_seconds(forcing)
+    if output_step_s < SECONDS_PER_DAY:
+        rows, solves = simulate_transient(forcing, static, output_step_s)
+    else:
+        rows, solves = simulate(forcing, static)
 
     output = io_dir / request["output"]["table"]
     output.parent.mkdir(parents=True, exist_ok=True)
