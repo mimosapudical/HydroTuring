@@ -32,8 +32,7 @@ def _probe() -> ProbeSpec:
         requires_states=(),
         requires_forcing=("pr",),
         requires_static=(
-            "area_km2", "width_m", "cross_section_shape", "bed_elevation_m",
-            "slope", "manning_n", "reach_length_m",
+            "width_m", "cross_section_shape", "slope", "manning_n", "reach_length_m",
         ),
         generator="generate.py",
         n_seeds=1,
@@ -127,11 +126,42 @@ def _synthetic_runs(celerities=(1.1, 1.5, 2.0)) -> dict[str, RunResult]:
 def test_criterion_is_registered_as_paired():
     assert is_paired("wave_celerity_bounds")
 
+def test_non_rectangular_geometry_is_rejected():
+    runs = _synthetic_runs()
+    run = runs["low_short"]
+    static = dict(run.case.static)
+    static["cross_section_shape"] = "trapezoidal"
+    runs["low_short"] = RunResult(
+        Case(
+            probe_id=run.case.probe_id,
+            seed=run.case.seed,
+            forcing=run.case.forcing,
+            static=static,
+            spinup_steps=run.case.spinup_steps,
+            timestep=run.case.timestep,
+        ),
+        run.table,
+        run.meta,
+        run.wall_seconds,
+    )
+    with pytest.raises(ValueError, match="rectangular"):
+        get("wave_celerity_bounds")(
+            runs,
+            _probe(),
+            {
+                "event_column": "_pulse",
+                "states": ["low", "medium", "high"],
+                "relative_tolerance": 0.05,
+                "baseline_hours": 12,
+            },
+        )
+
+
 
 def test_registered_probe_and_references_are_compatible():
     probe = registry.find_probe("momentum/wave-celerity-bounds")
     case = build_case(probe, gate_seeds(probe.id, 1)[0], "low_short")
-    for name in ("reference_saint_venant", "reference_fixed_celerity"):
+    for name in ("reference_saint_venant", "reference_fixed_celerity", "wflow_sbm"):
         assert compatibility_issues(registry.find_model(name), probe, case) == []
 
 
