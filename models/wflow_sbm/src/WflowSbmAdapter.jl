@@ -123,7 +123,7 @@ using PrecompileTools: @compile_workload, @setup_workload
 using TOML: TOML
 using Wflow: Wflow
 
-const MODEL = Dict{String, Any}("name" => "wflow_sbm", "version" => "1.0.4-ht.4")
+const MODEL = Dict{String, Any}("name" => "wflow_sbm", "version" => "1.0.4-ht.5")
 const WFLOW = Dict{String, Any}(
     "package" => "Wflow.jl", "version" => "1.0.4",
     "commit" => "82df72031511339d50fd9142fa159d0ec13e73c5", "model_type" => "sbm",
@@ -264,6 +264,28 @@ end
 "River width that makes a river along the pit cell's diagonal cover the Moselle river-area share."
 river_width_for_share(cell::Float64) = MOSELLE.river_area_share * cell^2 / (sqrt(2.0) * cell)
 
+const EXPLICIT_RIVER_GEOMETRY = ("reach_length_m", "width_m", "slope", "manning_n", "cross_section_shape")
+
+function explicit_river_geometry(static::AbstractDict)
+    present = [name for name in EXPLICIT_RIVER_GEOMETRY if haskey(static, name)]
+    isempty(present) && return nothing
+    missing = [name for name in EXPLICIT_RIVER_GEOMETRY if !haskey(static, name)]
+    isempty(missing) || error(
+        "explicit river geometry must provide $(join(EXPLICIT_RIVER_GEOMETRY, ", ")); missing $(join(missing, ", "))"
+    )
+    shape = lowercase(strip(String(static["cross_section_shape"])))
+    shape == "rectangular" || error("wflow_sbm explicit river geometry requires a rectangular section")
+    length_m = Float64(static["reach_length_m"])
+    width_m = Float64(static["width_m"])
+    slope = Float64(static["slope"])
+    manning_n = Float64(static["manning_n"])
+    all(isfinite, (length_m, width_m, slope, manning_n)) ||
+        error("explicit river geometry must be finite")
+    minimum((length_m, width_m, slope, manning_n)) > 0.0 ||
+        error("explicit river geometry must be positive")
+    return (length_m = length_m, width_m = width_m, slope = slope, manning_n = manning_n)
+end
+
 "The representative cell's side in metres, the soil capacity, and the static maps' values."
 function catchment(static::AbstractDict)
     area_km2 = Float64(static["area_km2"])
@@ -306,6 +328,13 @@ function catchment(static::AbstractDict)
         "N_River" => MOSELLE.n_river,
         "RiverDepth" => MOSELLE.river_depth,
     )
+    geometry = explicit_river_geometry(static)
+    if geometry !== nothing
+        maps["wflow_riverlength"] = geometry.length_m
+        maps["wflow_riverwidth"] = geometry.width_m
+        maps["RiverSlope"] = geometry.slope
+        maps["N_River"] = geometry.manning_n
+    end
     return cell, capacity, maps
 end
 
@@ -711,7 +740,7 @@ function simulate(forcing::Forcing, static::AbstractDict, timestep::AbstractStri
         removed = removed_sw[i] + removed_gw[i]
         columns[i, 1] = soil.actevap[1] / dt_days
         columns[i, 2] = mm(outflow * 86400.0)
-        columns[i, 3] = columns[i, 2] * area_km2 / 86.4
+        columns[i, 3] = river.q_av[1]
         columns[i, 4] = withdrawal ? -(leakage + removed) / dt_days : -leakage / dt_days
         columns[i, 5] = soil.ustoredepth[1] + soil.satwaterdepth[1]
         columns[i, 6] = snow.snow_storage[1] + snow.snow_water[1]
@@ -762,13 +791,21 @@ function simulate(forcing::Forcing, static::AbstractDict, timestep::AbstractStri
                 "Cmax_mm" => maps["Cmax"],
                 "TT_TTM_degC" => maps["TT"],
                 "Cfmax_mm_per_degC_day" => maps["Cfmax"],
+                "river_geometry" => explicit_river_geometry(static) === nothing ? "Moselle defaults" : Dict(
+                    "reach_length_m" => maps["wflow_riverlength"],
+                    "width_m" => maps["wflow_riverwidth"],
+                    "slope" => maps["RiverSlope"],
+                    "manning_n" => maps["N_River"],
+                    "cross_section_shape" => "rectangular",
+                ),
             ),
             "from_moselle_test_model" => Dict{String, Any}(String(k) => v for (k, v) in pairs(MOSELLE)),
             "effective_rooting_depth_mm" => model.land.vegetation_parameters.rootingdepth[1],
             "static_maps_written" => jsonable(maps),
             "static_attributes_unused" => sort([String(k) for k in keys(static) if !(k in (
                 "area_km2", "soil_capacity_mm", "canopy_capacity_mm", "snow_threshold_degC",
-                "degree_day_factor_mm_per_C_day"))]),
+                "degree_day_factor_mm_per_C_day", "reach_length_m", "width_m", "slope",
+                "manning_n", "cross_section_shape"))]),
         ),
         "wflow_model_options" => options,
         "wflow_parameters" => parameters,
@@ -785,7 +822,7 @@ function simulate(forcing::Forcing, static::AbstractDict, timestep::AbstractStri
         "reported" => Dict{String, Any}(
             "evspsbl" => "actevap: interception + soil evaporation + transpiration + open water",
             "mrro" => "river q_av at the outlet + overland q_av + lateral subsurface flow out of the outlet cell, as a depth over the cell",
-            "dis" => "mrro over the catchment's area, m3/s",
+            "dis" => "river q_av at the outlet gauge, m3/s; unlike mrro it excludes overland and lateral subsurface bypass flow",
             "gwex" => "minus the leakage from the saturated store (zero, MaxLeakage 0), and, when the case " *
                 "prescribes a withdrawal, minus what Wflow's allocation took for it (see human_withdrawal)",
             "mrso" => "unsaturated store (all layers) + saturated store: the SBM soil column",
