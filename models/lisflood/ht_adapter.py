@@ -165,7 +165,7 @@ os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
 import numpy as np  # noqa: E402
 
-MODEL = {"name": "lisflood", "version": "5.0.0-onecell.5"}
+MODEL = {"name": "lisflood", "version": "5.0.0-onecell.6"}
 COLUMNS = ["time", "pr", "evspsbl", "mrro", "dis", "gwex", "mrso", "snw", "canopy", "gw", "channel"]
 TIMESTEP_SECONDS = {"PT1D": 86400, "PT1H": 3600, "PT15M": 900, "PT5M": 300, "PT1M": 60}
 
@@ -344,6 +344,51 @@ def catchment_parameters(static: dict) -> tuple[dict, dict]:
     canopy = float(static["canopy_capacity_mm"])
     p["LAI"] = lai_for_canopy_capacity(canopy)
     source["LAI"] = "static.json canopy_capacity_mm through LISFLOOD's SMax(LAI), constant in time"
+    routing_keys = {
+        "width_m", "cross_section_shape", "slope", "manning_n",
+        "reach_length_m", "channel_bankfull_depth_m",
+    }
+    present = routing_keys.intersection(static)
+    if present:
+        missing = sorted(routing_keys.difference(static))
+        if missing:
+            raise ValueError(
+                "LISFLOOD routing geometry must be supplied as one complete set; "
+                f"missing {missing}"
+            )
+        shape = str(static["cross_section_shape"]).strip().lower()
+        if shape != "rectangular":
+            raise ValueError(
+                "LISFLOOD explicit routing geometry requires rectangular cross_section_shape"
+            )
+        width = float(static["width_m"])
+        slope = float(static["slope"])
+        manning_n = float(static["manning_n"])
+        bankfull = float(static["channel_bankfull_depth_m"])
+        length = float(static["reach_length_m"])
+        if not all(
+            math.isfinite(v) and v > 0.0
+            for v in (width, slope, manning_n, bankfull, length)
+        ):
+            raise ValueError(
+                "LISFLOOD explicit routing geometry must be finite and positive"
+            )
+
+        # Feed the declared reach into LISFLOOD's existing kinematic-wave
+        # parameters. ChanSdXdY=0 is its rectangular-section convention.
+        p["CalChanMan"] = 1.0
+        p["ChanMan"] = manning_n
+        p["ChanBottomWidth"] = width
+        p["ChanDepthThreshold"] = bankfull
+        p["ChanSdXdY"] = 0.0
+        p["ChanGrad"] = slope
+        source["CalChanMan"] = "set to 1 for explicit static.json manning_n"
+        source["ChanMan"] = "static.json manning_n"
+        source["ChanBottomWidth"] = "static.json width_m"
+        source["ChanDepthThreshold"] = "static.json channel_bankfull_depth_m"
+        source["ChanSdXdY"] = "static.json cross_section_shape=rectangular"
+        source["ChanGrad"] = "static.json slope"
+
     return p, source
 
 
@@ -402,7 +447,7 @@ def write_domain(work: Path, static: dict, params: dict, forcing: list[dict], ti
         "Channels": pcr_map("chan", pcr.Boolean, 1),
         "PixelLengthUser": pcr_map("pixleng", pcr.Scalar, CELL_LENGTH_M),
         "PixelAreaUser": pcr_map("pixarea", pcr.Scalar, CELL_AREA_M2),
-        "ChanLength": pcr_map("chanlength", pcr.Scalar, CHANNEL_LENGTH_M),
+        "ChanLength": pcr_map("chanlength", pcr.Scalar, float(static.get("reach_length_m", CHANNEL_LENGTH_M))),
         "netCDFtemplate": str(maps / "template.nc"),
         "LAIOtherMaps": str(lai_dir / "laio"), "LAIForestMaps": str(lai_dir / "laif"),
         "LAIIrrigationMaps": str(lai_dir / "laii"),
@@ -611,8 +656,8 @@ def simulate(forcing: list[dict], static: dict, timestep: str) -> tuple[list[dic
             "cells": 1,
             "cell_length_m": CELL_LENGTH_M,
             "cell_area_km2": CELL_AREA_M2 / 1.0e6,
-            "channel_length_m": CHANNEL_LENGTH_M,
-            "source": "the shipped test catchment's 5 km grid; chanlength median",
+            "channel_length_m": float(static.get("reach_length_m", CHANNEL_LENGTH_M)),
+            "source": ("static.json reach_length_m" if "reach_length_m" in static else\n                       "the shipped test catchment\'s 5 km grid; chanlength median"),
             "ldd": "pit with a channel",
             "land_use": "rainfed 'other' fraction 1.0",
             "catchment_area_km2": area_km2,
