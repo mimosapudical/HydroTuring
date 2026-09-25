@@ -88,7 +88,13 @@ def _kinematic_celerity(q: float, static: dict[str, Any], variant: str) -> float
     return float(celerity)
 
 
-def _centroid(run: RunResult, probe: ProbeSpec, params: dict, variant: str) -> tuple[float, float]:
+def _centroid(
+    run: RunResult,
+    probe: ProbeSpec,
+    params: dict,
+    variant: str,
+    event_column: str,
+) -> tuple[float, float]:
     window = make_window(run, probe)
     if "dis" not in window.table:
         raise _ResponseFailure(variant, f"variant '{variant}' does not report dis")
@@ -108,7 +114,7 @@ def _centroid(run: RunResult, probe: ProbeSpec, params: dict, variant: str) -> t
             {"nonfinite_count": nonfinite},
         )
 
-    marker = str(params.get("event_column", "_pulse"))
+    marker = event_column
     if marker not in window.forcing:
         raise ValueError(f"wave celerity needs hidden forcing column '{marker}'")
     event = pd.to_numeric(window.forcing[marker], errors="coerce").to_numpy(float)
@@ -124,9 +130,15 @@ def _centroid(run: RunResult, probe: ProbeSpec, params: dict, variant: str) -> t
     if first < baseline_steps:
         raise ValueError("wave-celerity pulse has too little pre-event baseline")
     base = float(np.mean(discharge[first - baseline_steps:first]))
-    response = np.clip(discharge - base, 0.0, None)
-    # Ignore numerical settling before the perturbation.
-    response[:first] = 0.0
+    response_hours = float(params.get("response_hours", 72.0))
+    if not np.isfinite(response_hours) or response_hours <= 0:
+        raise ValueError("wave-celerity response_hours must be finite and positive")
+    response_steps = max(1, int(np.ceil(response_hours / (window.dt_days * 24.0))))
+    response_stop = min(len(discharge), first + response_steps)
+    response = np.zeros_like(discharge)
+    response[first:response_stop] = np.clip(
+        discharge[first:response_stop] - base, 0.0, None
+    )
     total = float(response.sum())
     min_fraction = float(params.get("min_response_fraction", 1.0e-4))
     pulse_depth = float(np.sum(event) * window.dt_days)
@@ -159,9 +171,9 @@ def _centroid(run: RunResult, probe: ProbeSpec, params: dict, variant: str) -> t
 
 
 def _pair(runs: dict[str, RunResult], probe: ProbeSpec, params: dict, state: str) -> _Measurement:
-    short_name, long_name = f"{state}_short", f"{state}_long"
+    short_name, long_name = "short", "long"
     if short_name not in runs or long_name not in runs:
-        raise ValueError(f"wave celerity needs variants {short_name} and {long_name}")
+        raise ValueError("wave celerity needs short and long variants")
     short, long = runs[short_name], runs[long_name]
 
     # Within a hydraulic state, forcing and every static property except length
@@ -180,8 +192,12 @@ def _pair(runs: dict[str, RunResult], probe: ProbeSpec, params: dict, state: str
     if length_l <= length_s:
         raise ValueError(f"{state} long reach must exceed short reach")
 
-    t_short, q_short = _centroid(short, probe, params, short_name)
-    t_long, q_long = _centroid(long, probe, params, long_name)
+    event_columns = params.get("event_columns", {})
+    if not isinstance(event_columns, dict) or state not in event_columns:
+        raise ValueError(f"wave celerity needs an event column for state '{state}'")
+    event_column = str(event_columns[state])
+    t_short, q_short = _centroid(short, probe, params, short_name, event_column)
+    t_long, q_long = _centroid(long, probe, params, long_name, event_column)
     if not np.isclose(q_short, q_long, rtol=0.01, atol=1.0e-9):
         raise ValueError(f"{state} short/long base discharges disagree")
     dt_hours = t_long - t_short
@@ -206,7 +222,7 @@ def wave_celerity_bounds(
     states = tuple(params.get("states", ["low", "medium", "high"]))
     if len(states) < 2:
         raise ValueError("wave_celerity_bounds needs at least two hydraulic states")
-    expected = {f"{s}_{side}" for s in states for side in ("short", "long")}
+    expected = {"short", "long"}
     if set(runs) != expected:
         raise ValueError(
             f"wave-celerity variants mismatch: expected {sorted(expected)}, got {sorted(runs)}"
