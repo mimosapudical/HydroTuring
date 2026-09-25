@@ -23,14 +23,14 @@ citation: https://doi.org/10.5194/hess-24-2655-2020
 requires:
   fluxes: [dis]
   forcing: [pr]
-  static: [area_km2, width_m, cross_section_shape, bed_elevation_m, slope, manning_n, reach_length_m]
+  static: [width_m, cross_section_shape, slope, manning_n, reach_length_m]
 
 case:
   generator: generate.py
   n_seeds: 3
   timestep: PT1H
   period_days: 5
-  spinup_days: 2
+  spinup_days: 20
   min_window_days: 5
   max_output_mb: 2.0
   max_runtime_s: 300
