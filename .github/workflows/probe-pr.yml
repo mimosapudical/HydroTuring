@@ -1,4 +1,5 @@
 name: probe
+# evidence-trigger-v2
 
 # Validates the benchmark itself. Runs on every change to a probe, to the
 # harness, or to a reference model, because any of the three can silently
