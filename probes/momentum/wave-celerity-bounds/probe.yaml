@@ -49,6 +49,7 @@ criteria:
 baselines:
   must_pass:
     - reference_saint_venant
+    - wflow_sbm
   must_fail:
     reference_fixed_celerity: wave_celerity_bounds
 
