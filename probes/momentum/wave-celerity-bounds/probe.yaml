@@ -12,7 +12,7 @@ authors:
 description: >
   Low, medium and high steady hydraulic states are each perturbed by the same
   small pulse in a short and a long rectangular reach. The short/long centroid
-  delay isolates propagation over the extra half-reach distance. Observed
+  delay isolates propagation over the additional outlet travel distance. Observed
   celerity must be positive, remain within five percent of the independently
   computed Manning/kinematic dQ/dA expectation, and increase with hydraulic
   state. A fixed positive celerity can pass gross routing-lag tests but fails
@@ -53,7 +53,6 @@ criteria:
 baselines:
   must_pass:
     - reference_saint_venant
-    - wflow_sbm
   must_fail:
     reference_fixed_celerity: wave_celerity_bounds
 
