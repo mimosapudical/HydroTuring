@@ -86,6 +86,7 @@ centroid delay remains resolved at the one-hour output step even at high flow.
 | `sacsma_snow17` | N/A | does not consume this reach geometry |
 | `reference_saint_venant` | gate must-pass | independent finite-volume dynamic-wave solve |
 | `reference_fixed_celerity` | gate must-fail | deliberately fixed 1 m/s propagation |
+| `lisflood` | independent candidate | real kinematic-wave channel; PASS must be established by Round 2 Docker run before archiving |
 
 
 `reference_saint_venant` is the CI must-pass model. Its daily steady path is
