@@ -1,4 +1,4 @@
-"""Hourly low/medium/high transient pairs for wave-celerity bounds."""
+"""Hourly short/long transient cases for wave-celerity bounds."""
 
 from __future__ import annotations
 
@@ -7,27 +7,24 @@ import pandas as pd
 
 
 SPINUP_DAYS = 1
-PERIOD_DAYS = 2
 STEPS_PER_DAY = 24
+STATE_BLOCK_HOURS = 72
+SETTLE_HOURS = 36
+PULSE_STEPS = 2
+STATES = ("low", "medium", "high")
+STATE_MULTIPLIERS = {"low": 1.0, "medium": 2.0, "high": 4.0}
+PERIOD_DAYS = len(STATES) * STATE_BLOCK_HOURS // STEPS_PER_DAY
 N_STEPS = (SPINUP_DAYS + PERIOD_DAYS) * STEPS_PER_DAY
 SHORT_REACH_M = 10_000.0
 LONG_REACH_M = 50_000.0
-PULSE_START = SPINUP_DAYS * STEPS_PER_DAY + 8
-PULSE_STEPS = 2
-STATE_MULTIPLIERS = {"low": 1.0, "medium": 2.0, "high": 4.0}
-VARIANTS = tuple(
-    f"{state}_{length}"
-    for state in STATE_MULTIPLIERS
-    for length in ("short", "long")
-)
+VARIANTS = ("short", "long")
 
 
-def generate(seed: int, variant: str = "low_short") -> tuple[pd.DataFrame, dict]:
-    """Generate one state/length member of the six-case transient experiment."""
+def generate(seed: int, variant: str = "short") -> tuple[pd.DataFrame, dict]:
+    """Generate one reach-length member of the paired transient experiment."""
     if variant not in VARIANTS:
         raise ValueError(f"unknown variant {variant!r}; expected one of {VARIANTS}")
 
-    state, length_name = variant.rsplit("_", 1)
     rng = np.random.default_rng(seed)
 
     # Keep the experiment inside the mild, subcritical, friction-dominated
@@ -41,15 +38,22 @@ def generate(seed: int, variant: str = "low_short") -> tuple[pd.DataFrame, dict]
     pet = float(rng.uniform(1.5, 2.0))
     tas = float(rng.uniform(14.0, 18.0))
     low_effective_mm_day = float(rng.uniform(0.75, 0.95))
-    effective = low_effective_mm_day * STATE_MULTIPLIERS[state]
 
-    pr = np.full(N_STEPS, pet + effective, dtype=float)
+    effective = np.full(N_STEPS, low_effective_mm_day, dtype=float)
+    state_label = np.full(N_STEPS, "spinup", dtype=object)
     pulse = np.zeros(N_STEPS, dtype=float)
-    # Five percent is small enough to stay in the local-wave regime but large
-    # enough to dominate floating-point and finite-volume noise.
-    pulse[PULSE_START:PULSE_START + PULSE_STEPS] = 0.05 * effective
-    pr += pulse
 
+    start = SPINUP_DAYS * STEPS_PER_DAY
+    for state in STATES:
+        stop = start + STATE_BLOCK_HOURS
+        base = low_effective_mm_day * STATE_MULTIPLIERS[state]
+        effective[start:stop] = base
+        state_label[start:stop] = state
+        pulse_start = start + SETTLE_HOURS
+        pulse[pulse_start:pulse_start + PULSE_STEPS] = 0.05 * base
+        start = stop
+
+    pr = effective + pulse + pet
     time = pd.date_range("2001-01-01", periods=N_STEPS, freq="h")
     forcing = pd.DataFrame(
         {
@@ -57,7 +61,8 @@ def generate(seed: int, variant: str = "low_short") -> tuple[pd.DataFrame, dict]
             "pr": np.round(pr, 9),
             "tas": np.full(N_STEPS, tas),
             "pet": np.full(N_STEPS, pet),
-            # Hidden annotation: stripped before a model sees the forcing.
+            # Hidden annotations: stripped before a model sees the forcing.
+            "_state": state_label,
             "_pulse": np.round(pulse, 9),
         }
     )
@@ -75,9 +80,7 @@ def generate(seed: int, variant: str = "low_short") -> tuple[pd.DataFrame, dict]
         "bed_elevation_m": bed_elevation_m,
         "slope": slope,
         "manning_n": manning_n,
-        "reach_length_m": (
-            SHORT_REACH_M if length_name == "short" else LONG_REACH_M
-        ),
+        "reach_length_m": SHORT_REACH_M if variant == "short" else LONG_REACH_M,
         # Repository-owned Saint-Venant reference uses this opt-in to advance
         # the transient PDE instead of its existing pseudo-steady mode.
         "transient_wave": True,
