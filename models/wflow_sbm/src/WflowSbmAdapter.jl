@@ -267,23 +267,19 @@ river_width_for_share(cell::Float64) = MOSELLE.river_area_share * cell^2 / (sqrt
 const EXPLICIT_RIVER_GEOMETRY = ("reach_length_m", "width_m", "slope", "manning_n", "cross_section_shape")
 
 function explicit_river_geometry(static::AbstractDict)
-    present = [name for name in EXPLICIT_RIVER_GEOMETRY if haskey(static, name)]
-    isempty(present) && return nothing
-    missing = [name for name in EXPLICIT_RIVER_GEOMETRY if !haskey(static, name)]
-    isempty(missing) || error(
-        "explicit river geometry must provide $(join(EXPLICIT_RIVER_GEOMETRY, ", ")); missing $(join(missing, ", "))"
-    )
-    shape = lowercase(strip(String(static["cross_section_shape"])))
-    shape == "rectangular" || error("wflow_sbm explicit river geometry requires a rectangular section")
-    length_m = Float64(static["reach_length_m"])
-    width_m = Float64(static["width_m"])
-    slope = Float64(static["slope"])
-    manning_n = Float64(static["manning_n"])
-    all(isfinite, (length_m, width_m, slope, manning_n)) ||
-        error("explicit river geometry must be finite")
-    minimum((length_m, width_m, slope, manning_n)) > 0.0 ||
-        error("explicit river geometry must be positive")
-    return (length_m = length_m, width_m = width_m, slope = slope, manning_n = manning_n)
+    if haskey(static, "cross_section_shape")
+        shape = lowercase(strip(String(static["cross_section_shape"])))
+        shape == "rectangular" || error("wflow_sbm explicit river geometry requires a rectangular section")
+    end
+    values = Dict{String, Float64}()
+    for name in ("reach_length_m", "width_m", "slope", "manning_n")
+        haskey(static, name) || continue
+        value = Float64(static[name])
+        isfinite(value) || error("explicit river geometry '$name' must be finite")
+        value > 0.0 || error("explicit river geometry '$name' must be positive")
+        values[name] = value
+    end
+    return values
 end
 
 "The representative cell's side in metres, the soil capacity, and the static maps' values."
@@ -329,12 +325,10 @@ function catchment(static::AbstractDict)
         "RiverDepth" => MOSELLE.river_depth,
     )
     geometry = explicit_river_geometry(static)
-    if geometry !== nothing
-        maps["wflow_riverlength"] = geometry.length_m
-        maps["wflow_riverwidth"] = geometry.width_m
-        maps["RiverSlope"] = geometry.slope
-        maps["N_River"] = geometry.manning_n
-    end
+    haskey(geometry, "reach_length_m") && (maps["wflow_riverlength"] = geometry["reach_length_m"])
+    haskey(geometry, "width_m") && (maps["wflow_riverwidth"] = geometry["width_m"])
+    haskey(geometry, "slope") && (maps["RiverSlope"] = geometry["slope"])
+    haskey(geometry, "manning_n") && (maps["N_River"] = geometry["manning_n"])
     return cell, capacity, maps
 end
 
