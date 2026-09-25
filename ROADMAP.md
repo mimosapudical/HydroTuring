@@ -318,11 +318,17 @@ Contributed by Mofan Zhang (Department of Civil and Environmental Engineering,
 Stanford University, Stanford, CA, USA; GitHub: Mofan-coding; ORCID:
 https://orcid.org/0000-0001-8839-1808).
 
-### `momentum/wave-celerity-bounds` &middot; hard &middot; **unclaimed**
-Kinematic wave celerity must be positive and near the Manning expectation for
-the reach geometry.
-*Discriminates:* models that route a flood wave upstream, or at a speed the
-channel cannot support.
+### `momentum/wave-celerity-bounds` &middot; **merged**
+Across low, medium and high hydraulic states, paired short and long reaches
+must imply downstream transient celerity within 5% of the declared
+Manning/kinematic dQ/dA expectation, and the resolved celerity must increase
+with flow.
+*Discriminates:* fixed-celerity routers that can remain causal and
+length-dependent while ignoring hydraulic state, and routers whose transient
+speed is inconsistent with the reach geometry.
+Contributed by Jingzhi Chen (Department of Computer Science and Engineering,
+State University of New York at Buffalo, Buffalo, NY, USA; GitHub:
+mimosapudical).
 
 ### `momentum/froude-regime` &middot; standard &middot; **unclaimed**
 Flow in a mild-sloped reach must stay subcritical.
