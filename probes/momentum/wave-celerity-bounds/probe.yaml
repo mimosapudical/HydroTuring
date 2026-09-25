@@ -29,17 +29,21 @@ case:
   generator: generate.py
   n_seeds: 3
   timestep: PT1H
-  period_days: 5
+  period_days: 24
   spinup_days: 20
   min_window_days: 5
   max_output_mb: 2.0
   max_runtime_s: 300
-  variants: [low_short, low_long, medium_short, medium_long, high_short, high_long]
+  variants: [short, long]
 
 criteria:
   - wave_celerity_bounds:
-      event_column: _pulse
       states: [low, medium, high]
+      event_columns:
+        low: _pulse_low
+        medium: _pulse_medium
+        high: _pulse_high
+      response_hours: 72
       relative_tolerance: 0.05
       baseline_hours: 12
       min_response_fraction: 0.0001
