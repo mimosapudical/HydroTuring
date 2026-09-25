@@ -9,7 +9,7 @@ slower in longer reaches?
 
 For each seed, the generator draws one mild prismatic rectangular reach
 geometry and creates three positive base discharges: 8, 16 and 32 m3/s. Each
-state is run twice with byte-identical forcing, once at 4 km and once at 12 km.
+state is run twice with byte-identical forcing, once at 4 km and once at 20 km.
 After twenty days of spinup and one scored day at the base state, a six-hour
 5% inflow pulse is applied. The case also supplies a small 80 mm soil capacity
 and 1.5 mm canopy capacity so a full hydrologic model can settle before the
@@ -67,6 +67,13 @@ low by about 9--13%, 128 cells by about 4--8%, and tested 256-cell cases by
 about 2--4%. The production transient path therefore uses 256 cells rather than
 widening the physical tolerance to cover coarse-grid diffusion.
 
+The production generator also keeps the synthetic section deliberately wide:
+60--90 m for 8--32 m3/s. Across the generator's full slope and roughness
+ranges, the wide-channel kinematic approximation used by Wflow differs from
+the exact rectangular dQ/dA used by the criterion by at most about 2.2%. The
+4 km / 20 km pair gives an 8 km extra centreline distance, so the short/long
+centroid delay remains resolved at the one-hour output step even at high flow.
+
 ## Baselines and applicability
 
 | Model | #148 status | Reason |
@@ -103,10 +110,12 @@ fields used by the separate routing-lag probe, not this probe's
 `reach_length_m`, `width_m`, `slope` and `manning_n` into Wflow's river
 static maps and lets Wflow's own kinematic-wave routing respond to them.
 
-Wflow's public `dis` output is still the model's total outlet flow converted
-from `mrro`; it is not a hidden river-only diagnostic. Therefore the Docker
-gate is load-bearing: it must demonstrate that, under this controlled case, the
-paired short/long timing remains identifiable in the reported outlet response.
+Wflow's public `dis` output is its river kinematic-wave discharge `river.q_av`;
+`mrro` separately contains total outlet flow including overland and lateral
+subsurface outflow. Therefore the criterion reads the routing quantity the
+probe is actually about rather than a mixture of catchment flow paths. The
+Docker gate is still load-bearing because the measured timing must come from
+the real Wflow run, not from the adapter manifest or this README.
 No PASS row is written in advance. After the real Docker gate passes, the
 `wflow_sbm` row for this probe must be appended to `models/result.csv`.
 
