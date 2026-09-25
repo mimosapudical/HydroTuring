@@ -16,5 +16,5 @@ emits:
 needs_forcing: [pr, tas, pet]
 needs_static: [area_km2, width_m, cross_section_shape, bed_elevation_m, slope, manning_n, reach_length_m]
 supports:
-  perturbation: false
+  perturbation: true
 resources: {cpu: 1, memory_gb: 1, gpu: false}
