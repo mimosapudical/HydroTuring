@@ -44,7 +44,7 @@ criteria:
       baseline_hours: 12
       min_response_fraction: 0.0001
       timing_floor_hours: 0.05
-      ordering_margin_fraction: 0.0
+      ordering_margin_fraction: 0.05
 
 baselines:
   must_pass:
