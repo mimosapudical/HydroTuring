@@ -221,6 +221,20 @@ def test_registered_fixed_celerity_control_trips_gate():
     assert "wave_celerity_bounds" in outcome.failing
 
 
+def test_wflow_is_the_independent_physical_must_pass():
+    probe = registry.find_probe("momentum/wave-celerity-bounds")
+    assert probe.must_pass == ("reference_saint_venant", "wflow_sbm")
+    model = registry.find_model("wflow_sbm")
+    assert model.runner == "docker"
+    assert model.supports_timestep("PT1H")
+    assert model.supports_perturbation
+    assert "dis" in model.emitted
+    for key in (
+        "reach_length_m", "width_m", "slope", "manning_n", "cross_section_shape"
+    ):
+        assert key in model.uses_static
+
+
 def test_saint_venant_daily_uniform_flow_contract_is_preserved():
     model = registry.find_model("reference_saint_venant")
     assert model.supports_timestep("PT1D")
