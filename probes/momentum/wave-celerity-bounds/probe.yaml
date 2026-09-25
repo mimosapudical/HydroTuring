@@ -1,0 +1,72 @@
+id: momentum/wave-celerity-bounds
+title: Transient wave celerity follows the declared reach physics and hydraulic state
+law: momentum
+track: synthetic
+version: 1
+
+authors:
+  - name: Jingzhi Chen
+    affiliation: Department of Computer Science and Engineering, State University of New York at Buffalo, Buffalo, NY, USA
+    github: mimosapudical
+
+description: >
+  Three steady hydraulic operating states are each perturbed by the same small
+  transient in a 10 km and a 50 km version of one rectangular reach. The
+  short/long response-centroid difference removes the common generation delay
+  and gives the propagation speed over the extra distance to the centre gauge.
+  That observed speed must be downstream, within five percent of dQ/dA from
+  the declared Manning geometry, and must increase materially from low to
+  medium to high flow. A fixed positive routing speed can therefore pass a
+  length-lag or causality check and still fail this probe.
+
+citation: https://doi.org/10.3133/wri834251
+
+requires:
+  fluxes: [dis]
+  diagnostics: [stage]
+  static: [width_m, cross_section_shape, bed_elevation_m, slope, manning_n, reach_length_m]
+
+case:
+  generator: generate.py
+  n_seeds: 3
+  timestep: PT1H
+  period_days: 2
+  spinup_days: 1
+  min_window_days: 2
+  min_scored_fraction: 1.0
+  max_output_mb: 2.0
+  max_runtime_s: 300
+  variants:
+    - low_short
+    - low_long
+    - medium_short
+    - medium_long
+    - high_short
+    - high_long
+
+criteria:
+  - wave_celerity_bounds:
+      states: [low, medium, high]
+      pulse_column: _pulse
+      tolerance: 0.05
+      ordering_margin: 0.02
+      baseline_hours: 6
+      baseline_pair_tolerance: 0.01
+      min_peak_fraction: 0.005
+      response_floor_fraction: 0.0001
+
+baselines:
+  must_pass:
+    - reference_saint_venant
+  must_fail:
+    reference_fixed_celerity: wave_celerity_bounds
+  must_fail_only:
+    - reference_fixed_celerity
+
+provenance: >
+  Synthetic hourly forcing and reach attributes are generated deterministically
+  from the recorded seed. The six variants share geometry within a seed except
+  for hydraulic operating state and the declared 10 km versus 50 km reach
+  length. The physical reference advances the one-dimensional Saint-Venant
+  equations; the criterion independently compares the measured transient speed
+  with the local Manning-rating derivative dQ/dA.
