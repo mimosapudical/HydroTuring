@@ -128,6 +128,19 @@ half of them.
 | channel Manning's n, side slope | 0.0468, 1 | test catchment medians over all cells |
 | channel bottom width, bankfull depth, gradient | 4.34 m, 0.165 m, 0.066 | test catchment medians over its 961 headwater cells |
 
+
+When a case supplies the complete explicit routing tuple
+(`reach_length_m`, `width_m`, `slope`, `manning_n`,
+`channel_bankfull_depth_m`, and
+`cross_section_shape="rectangular"`), the adapter maps those values onto
+LISFLOOD's existing channel kinematic-wave inputs: `ChanLength`,
+`ChanBottomWidth`, `ChanGrad`, `ChanMan`, `ChanDepthThreshold`, and
+the rectangular side-slope convention. The override is all-or-nothing: a
+partial tuple is rejected. Cases without any of these fields retain the
+historical test-catchment geometry above, so this wiring does not silently
+change older probe cases.
+
+
 "Test catchment" is `tests/data/LF_ETRS89_UseCase` at the pinned commit,
 averaged over its 2847-cell mask. Channel dimensions and low flows grow with
 upstream area. The representative cell is a pit that drains only its own
