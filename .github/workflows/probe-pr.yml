@@ -86,3 +86,40 @@ jobs:
                  --probe mass/catchment-closure \
                  --seed 4242 \
                  --runner docker
+
+
+  lisflood_evidence:
+    # TEMPORARY ROUND-2 DIAGNOSTIC. Remove after collecting #148 evidence.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install
+        run: pip install -e '.[dev]'
+
+      - name: Run LISFLOOD on wave-celerity gate seeds
+        run: |
+          set +e
+          rm -f /tmp/wave.csv
+          ht run --model lisflood \
+                 --probe momentum/wave-celerity-bounds \
+                 --gate-seeds \
+                 --csv /tmp/wave.csv \
+                 > /tmp/lisflood-wave-report.txt 2>&1
+          rc=$?
+          echo "LISFLOOD_WAVE_RC=$rc"
+          echo "LISFLOOD_WAVE_REPORT_BEGIN"
+          cat /tmp/lisflood-wave-report.txt
+          echo "LISFLOOD_WAVE_REPORT_END"
+          echo "LISFLOOD_WAVE_CSV_BEGIN"
+          if [ -f /tmp/wave.csv ]; then cat /tmp/wave.csv; else echo "NO_CSV"; fi
+          echo "LISFLOOD_WAVE_CSV_END"
+          exit $rc
