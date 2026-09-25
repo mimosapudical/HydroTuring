@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 STEP_HOURS = 1
-SPINUP_DAYS = 2
+SPINUP_DAYS = 20
 PERIOD_DAYS = 5
 N_STEPS = (SPINUP_DAYS + PERIOD_DAYS) * 24
 AREA_KM2 = 100.0
@@ -58,6 +58,8 @@ def generate(seed: int, variant: str = "low_short") -> tuple[pd.DataFrame, dict]
     })
     static = {
         "area_km2": AREA_KM2,
+        "soil_capacity_mm": 80.0,
+        "canopy_capacity_mm": 1.5,
         "width_m": width_m,
         "cross_section_shape": "rectangular",
         "bed_elevation_m": bed,
