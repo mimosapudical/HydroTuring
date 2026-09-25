@@ -86,3 +86,44 @@ jobs:
                  --probe mass/catchment-closure \
                  --seed 4242 \
                  --runner docker
+
+
+  archive_evidence:
+    # Temporary CI-only job. This branch is never merged.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install
+        run: pip install -e '.[dev]'
+
+      - name: Generate exact archive rows
+        run: |
+          set +e
+          rm -f /tmp/lisflood-full.csv /tmp/wave.csv
+
+          ht run --model lisflood --gate-seeds --csv /tmp/lisflood-full.csv             > /tmp/lisflood-full.txt 2>&1
+          lisflood_rc=$?
+
+          for model in cwatm dhbv2 flex_lumped flex_topo google_flood_forecast modflow6 sacsma_snow17 summa wflow_sbm; do
+            ht run --model "$model"               --probe momentum/wave-celerity-bounds               --gate-seeds               --csv /tmp/wave.csv               > "/tmp/${model}-wave.txt" 2>&1
+            echo "$model rc=$?"
+          done
+
+          echo "LISFLOOD_RC=$lisflood_rc"
+          echo "LISFLOOD_REPORT_BEGIN"
+          cat /tmp/lisflood-full.txt
+          echo "LISFLOOD_REPORT_END"
+          echo "ARCHIVE_LISFLOOD_FULL_BEGIN"
+          cat /tmp/lisflood-full.csv
+          echo "ARCHIVE_LISFLOOD_FULL_END"
+          echo "ARCHIVE_WAVE_BEGIN"
+          cat /tmp/wave.csv
+          echo "ARCHIVE_WAVE_END"
+          exit 0
