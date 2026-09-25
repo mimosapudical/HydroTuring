@@ -28,7 +28,7 @@ from pathlib import Path
 
 import numpy as np
 
-MODEL = {"name": "reference_saint_venant", "version": "1.0.0"}
+MODEL = {"name": "reference_saint_venant", "version": "1.1.0"}
 SECONDS_PER_DAY = 86400.0
 GRAVITY = 9.80665
 N_CELLS = 64
