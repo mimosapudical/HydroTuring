@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import importlib.util
-
 import pandas as pd
 import pytest
 
 from hydroturing import registry
-from hydroturing.criteria import get, is_paired
+from hydroturing.criteria import is_paired
 from hydroturing.harness import build_case, compatibility_issues, run_probe
 from hydroturing.scoring import FAIL, PASS
 from hydroturing.seeds import gate_seeds
@@ -29,17 +27,9 @@ def probe():
     return registry.find_probe(PROBE_ID)
 
 
-def _load_adapter(model_name: str):
-    path = registry.find_model(model_name).path / "ht_adapter.py"
-    spec = importlib.util.spec_from_file_location(f"{model_name}_module", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def test_criterion_is_paired_and_is_the_probe_headline(probe):
     assert is_paired("wave_celerity_bounds")
+    assert probe.variants == ("short", "long")
     assert probe.headline == ("wave_celerity_bounds",)
 
 
@@ -57,38 +47,39 @@ def test_probe_declares_every_geometry_input_used_by_the_verdict(probe):
 
 
 @pytest.mark.parametrize("seed", gate_seeds(PROBE_ID, 3))
-def test_short_long_pairs_are_identical_except_reach_length(probe, seed):
-    for state in STATES:
-        short = build_case(probe, seed, f"{state}_short")
-        long = build_case(probe, seed, f"{state}_long")
-        pd.testing.assert_frame_equal(short.forcing, long.forcing, check_exact=True)
-        assert set(short.static) == set(long.static)
-        for key in short.static:
-            if key != "reach_length_m":
-                assert short.static[key] == long.static[key]
-        assert short.static["reach_length_m"] == pytest.approx(10_000.0)
-        assert long.static["reach_length_m"] == pytest.approx(50_000.0)
+def test_short_long_runs_are_identical_except_reach_length(probe, seed):
+    short = build_case(probe, seed, "short")
+    long = build_case(probe, seed, "long")
+    pd.testing.assert_frame_equal(short.forcing, long.forcing, check_exact=True)
+    assert set(short.static) == set(long.static)
+    for key in short.static:
+        if key != "reach_length_m":
+            assert short.static[key] == long.static[key]
+    assert short.static["reach_length_m"] == pytest.approx(10_000.0)
+    assert long.static["reach_length_m"] == pytest.approx(50_000.0)
 
 
 @pytest.mark.parametrize("seed", gate_seeds(PROBE_ID, 3))
-def test_operating_states_raise_only_the_base_hydraulic_forcing(probe, seed):
-    cases = [build_case(probe, seed, f"{state}_short") for state in STATES]
-    effective = [
-        (case.forcing["pr"] - case.forcing["pet"]).iloc[case.spinup_steps + 1]
-        for case in cases
-    ]
-    assert effective[1] == pytest.approx(2.0 * effective[0])
-    assert effective[2] == pytest.approx(4.0 * effective[0])
-    for case in cases:
-        scored = case.after_spinup(case.forcing)
-        assert int((scored["_pulse"] > 0.0).sum()) == 2
-        assert float(scored["_pulse"].max()) == pytest.approx(
-            0.05 * float((scored["pr"] - scored["pet"]).min())
-        )
+def test_each_state_has_settling_time_and_one_small_pulse(probe, seed):
+    case = build_case(probe, seed, "short")
+    scored = case.after_spinup(case.forcing)
+    bases = []
+    for state in STATES:
+        block = scored.loc[scored["_state"] == state]
+        assert len(block) == 72
+        pulse = block["_pulse"] > 0.0
+        assert int(pulse.sum()) == 2
+        first_pulse = int(pulse.to_numpy().nonzero()[0][0])
+        assert first_pulse == 36
+        base = float((block["pr"] - block["pet"] - block["_pulse"]).iloc[0])
+        bases.append(base)
+        assert float(block["_pulse"].max()) == pytest.approx(0.05 * base)
+    assert bases[1] == pytest.approx(2.0 * bases[0])
+    assert bases[2] == pytest.approx(4.0 * bases[0])
 
 
 def test_only_process_aware_references_are_compatible(probe):
-    case = build_case(probe, gate_seeds(PROBE_ID, 1)[0], "low_short")
+    case = build_case(probe, gate_seeds(PROBE_ID, 1)[0], "short")
     assert compatibility_issues(
         registry.find_model("reference_saint_venant"), probe, case
     ) == []
@@ -110,9 +101,6 @@ def test_rectangular_celerity_is_the_analytic_manning_derivative():
     slope = 0.0015
     roughness = 0.035
     exact = module._rectangular_celerity(depth, width, slope, roughness)
-
-    # Differentiate the declared Manning Q(A) numerically while holding n and
-    # S fixed; this must match the analytic expression used by the criterion.
     area = width * depth
 
     def rating(a):
@@ -125,7 +113,7 @@ def test_rectangular_celerity_is_the_analytic_manning_derivative():
     assert exact == pytest.approx(finite_difference, rel=1.0e-8)
 
 
-def test_fixed_celerity_control_fails_the_registered_probe(probe, tmp_path):
+def test_fixed_celerity_control_fails_only_the_new_criterion(probe, tmp_path):
     outcome = run_probe(
         registry.find_model("reference_fixed_celerity"),
         probe,
