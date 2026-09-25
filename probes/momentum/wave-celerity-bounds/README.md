@@ -81,9 +81,16 @@ probe. `reference_bucket`, `flex_topo` and `sacsma_snow17` do not declare
 consumption of reach length; `flex_lumped` consumes catchment channel-length
 fields used by the separate routing-lag probe, not this probe's
 `reach_length_m`. Under the harness contract they are therefore
-`N/A (INCOMPATIBLE)`, not FAIL. The submitted physical Saint-Venant reference
-supplies the positive evidence required for a process the general baselines do
-not implement.
+`N/A (INCOMPATIBLE)`, not FAIL.
+
+`reference_saint_venant` is the CI must-pass reference, but it is not by itself
+the independent submitted-model evidence required by the exception in
+`docs/writing-a-probe.md`. Before merge, a submitted physical model that
+actually implements reach-wave propagation must also pass and have that row
+archived in `models/result.csv`. `wflow_sbm` is the first candidate to audit,
+because its manifest explicitly describes kinematic-wave river routing; its
+adapter must not be declared compatible until it genuinely consumes this
+probe's reach geometry and the archived run passes.
 
 ## Reproduction
 
