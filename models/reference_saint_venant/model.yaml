@@ -10,7 +10,7 @@ authors: ["HydroTuring maintainers"]
 license: PolyForm-Noncommercial-1.0.0
 runner: subprocess
 entrypoint: ["python3", "ht_adapter.py"]
-timestep: PT1D
+timestep: [PT1D, PT1H]
 emits:
   fluxes: [dis]
   states: []
