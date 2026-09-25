@@ -77,10 +77,10 @@ widening the physical tolerance to cover coarse-grid diffusion.
 | `sacsma_snow17` | N/A | does not consume this reach geometry |
 | `reference_saint_venant` | gate must-pass | independent finite-volume dynamic-wave solve |
 | `reference_fixed_celerity` | gate must-fail | deliberately fixed 1 m/s propagation |
-| `wflow_sbm` | physical candidate | Wflow river kinematic wave now consumes the explicit reach geometry; clean Docker PASS still required before merge |
+| `wflow_sbm` | gate must-pass, pending Docker evidence | submitted Wflow.jl model; its river kinematic wave consumes the explicit reach geometry |
 
 
-`reference_saint_venant` is the must-pass model. Its daily steady path is
+`reference_saint_venant` and `wflow_sbm` are the two must-pass models. The Saint-Venant reference's daily steady path is
 unchanged; for sub-daily forcing it advances the same continuity and momentum
 equations continuously through each output interval using a 256-cell grid.
 The criterion does not call the solver's fluxes or internal wave speeds.
@@ -97,16 +97,18 @@ fields used by the separate routing-lag probe, not this probe's
 `reach_length_m`. Under the harness contract they are therefore
 `N/A (INCOMPATIBLE)`, not FAIL.
 
-`reference_saint_venant` is the CI must-pass reference, but it is not by itself
-the independent submitted-model evidence required by the exception in
-`docs/writing-a-probe.md`. `wflow_sbm` is wired as the independent candidate:
-when explicit geometry is present its adapter writes `reach_length_m`,
-`width_m`, `slope` and `manning_n` into Wflow's river static maps and reports
-Wflow's river `q_av` as `dis`, while keeping total catchment outflow in `mrro`.
-It is not promoted to a must-pass baseline until the clean Docker smoke run
-passes the complete criterion; a PASS must then be archived in
-`models/result.csv` (or kept as a gated physical baseline if its CI runtime is
-acceptable).
+`reference_saint_venant` is the trusted in-repository numerical reference.
+`wflow_sbm` is the independent submitted physical baseline required by
+`docs/writing-a-probe.md`. Its adapter genuinely maps explicit
+`reach_length_m`, `width_m`, `slope` and `manning_n` into Wflow's river
+static maps and lets Wflow's own kinematic-wave routing respond to them.
+
+Wflow's public `dis` output is still the model's total outlet flow converted
+from `mrro`; it is not a hidden river-only diagnostic. Therefore the Docker
+gate is load-bearing: it must demonstrate that, under this controlled case, the
+paired short/long timing remains identifiable in the reported outlet response.
+No PASS row is written in advance. After the real Docker gate passes, the
+`wflow_sbm` row for this probe must be appended to `models/result.csv`.
 
 ## Reproduction
 
