@@ -288,8 +288,8 @@ def simulate_transient(
         ):
             rows.append({
                 "time": item["time"],
-                "dis": float(width_m * unit_discharge[center]),
-                "stage": float(bed_m + depth[center]),
+                "dis": float(width_m * unit_discharge[outlet]),
+                "stage": float(bed_m + depth[outlet]),
             })
             continue
         transient_started = True
