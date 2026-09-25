@@ -48,7 +48,7 @@ def _probe() -> ProbeSpec:
             "high_short", "high_long",
         ),
         criteria=(Criterion("wave_celerity_bounds", {}),),
-        must_pass=("reference_saint_venant",),
+        must_pass=("reference_saint_venant", "wflow_sbm"),
         must_fail={"reference_fixed_celerity": "wave_celerity_bounds"},
         provenance="synthetic",
         path=ROOT / "probes" / "momentum" / "wave-celerity-bounds",
@@ -165,6 +165,20 @@ def test_registered_probe_and_references_are_compatible():
         assert compatibility_issues(registry.find_model(name), probe, case) == []
 
 
+def test_generator_stays_inside_wide_channel_allowance():
+    probe = registry.find_probe("momentum/wave-celerity-bounds")
+    for seed in gate_seeds(probe.id, probe.n_seeds):
+        case = build_case(probe, seed, "high_short")
+        width = float(case.static["width_m"])
+        slope = float(case.static["slope"])
+        n = float(case.static["manning_n"])
+        q = 32.0
+        exact = _c_kin(q, width=width, slope=slope, n=n)
+        wide_depth = (q * n / (width * slope ** 0.5)) ** (3.0 / 5.0)
+        wide = (5.0 / 3.0) * q / (width * wide_depth)
+        assert abs(wide - exact) / exact < 0.05
+
+
 def test_generator_pairs_change_only_reach_length():
     probe = registry.find_probe("momentum/wave-celerity-bounds")
     seed = gate_seeds(probe.id, 1)[0]
@@ -217,7 +231,7 @@ def test_registered_fixed_celerity_control_trips_gate():
         probe,
         gate_seeds(probe.id, 1),
     )
-    assert outcome.verdict == "fail"
+    assert outcome.verdict == "FAIL"
     assert "wave_celerity_bounds" in outcome.failing
 
 
