@@ -10,8 +10,11 @@ slower in longer reaches?
 For each seed, the generator draws one mild prismatic rectangular reach
 geometry and creates three positive base discharges: 8, 16 and 32 m3/s. Each
 state is run twice with byte-identical forcing, once at 4 km and once at 12 km.
-After two days of spinup and one scored day at the base state, a six-hour 5%
-inflow pulse is applied.
+After twenty days of spinup and one scored day at the base state, a six-hour
+5% inflow pulse is applied. The case also supplies a small 80 mm soil capacity
+and 1.5 mm canopy capacity so a full hydrologic model can settle before the
+routing transient is timed, rather than leaving a slowly filling catchment
+store inside the response centroid.
 
 The gauge is at the reach centre, so the extra propagation distance is
 
@@ -66,6 +69,17 @@ widening the physical tolerance to cover coarse-grid diffusion.
 
 ## Baselines and applicability
 
+| Model | #148 status | Reason |
+| --- | --- | --- |
+| `reference_bucket` | N/A | no geometry-aware reach-wave process |
+| `flex_lumped` | N/A | existing lag uses catchment channel-length fields and fixed 1 m/s celerity, not this reach contract |
+| `flex_topo` | N/A | does not consume this reach geometry |
+| `sacsma_snow17` | N/A | does not consume this reach geometry |
+| `reference_saint_venant` | gate must-pass | independent finite-volume dynamic-wave solve |
+| `reference_fixed_celerity` | gate must-fail | deliberately fixed 1 m/s propagation |
+| `wflow_sbm` | physical candidate | Wflow river kinematic wave now consumes the explicit reach geometry; clean Docker PASS still required before merge |
+
+
 `reference_saint_venant` is the must-pass model. Its daily steady path is
 unchanged; for sub-daily forcing it advances the same continuity and momentum
 equations continuously through each output interval using a 256-cell grid.
@@ -85,12 +99,14 @@ fields used by the separate routing-lag probe, not this probe's
 
 `reference_saint_venant` is the CI must-pass reference, but it is not by itself
 the independent submitted-model evidence required by the exception in
-`docs/writing-a-probe.md`. Before merge, a submitted physical model that
-actually implements reach-wave propagation must also pass and have that row
-archived in `models/result.csv`. `wflow_sbm` is the first candidate to audit,
-because its manifest explicitly describes kinematic-wave river routing; its
-adapter must not be declared compatible until it genuinely consumes this
-probe's reach geometry and the archived run passes.
+`docs/writing-a-probe.md`. `wflow_sbm` is wired as the independent candidate:
+when explicit geometry is present its adapter writes `reach_length_m`,
+`width_m`, `slope` and `manning_n` into Wflow's river static maps and reports
+Wflow's river `q_av` as `dis`, while keeping total catchment outflow in `mrro`.
+It is not promoted to a must-pass baseline until the clean Docker smoke run
+passes the complete criterion; a PASS must then be archived in
+`models/result.csv` (or kept as a gated physical baseline if its CI runtime is
+acceptable).
 
 ## Reproduction
 
