@@ -246,10 +246,11 @@ def test_zero_response_is_a_scientific_failure_not_an_exception():
     runs = _synthetic_runs()
     run = runs["long"]
     table = run.table.copy()
-    table["dis"] = np.resize(
-        np.repeat(np.asarray(STATE_Q, dtype=float), 96),
-        len(table),
-    )
+    flat = np.full(len(table), STATE_Q[0], dtype=float)
+    flat[48:144] = STATE_Q[0]
+    flat[144:240] = STATE_Q[1]
+    flat[240:336] = STATE_Q[2]
+    table["dis"] = flat
     runs["long"] = RunResult(run.case, table, run.meta, run.wall_seconds)
     result = get("wave_celerity_bounds")(runs, _probe(), _params())
     assert not result.passed
