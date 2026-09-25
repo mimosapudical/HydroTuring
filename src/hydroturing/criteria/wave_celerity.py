@@ -13,6 +13,15 @@ from hydroturing.protocol import RunResult
 from hydroturing.spec import ProbeSpec
 
 
+class _ResponseFailure(ValueError):
+    """A model answer that cannot demonstrate a measurable routing response."""
+
+    def __init__(self, variant: str, message: str, diagnostics: dict[str, Any] | None = None):
+        super().__init__(message)
+        self.variant = variant
+        self.diagnostics = {"variant": variant, **(diagnostics or {})}
+
+
 @dataclass(frozen=True)
 class _Measurement:
     state: str
@@ -82,10 +91,22 @@ def _kinematic_celerity(q: float, static: dict[str, Any], variant: str) -> float
 def _centroid(run: RunResult, probe: ProbeSpec, params: dict, variant: str) -> tuple[float, float]:
     window = make_window(run, probe)
     if "dis" not in window.table:
-        raise ValueError(f"variant '{variant}' does not report dis")
+        raise _ResponseFailure(variant, f"variant '{variant}' does not report dis")
     discharge = pd.to_numeric(window.table["dis"], errors="coerce").to_numpy(float)
-    if len(discharge) != len(window.forcing) or not np.isfinite(discharge).all():
-        raise ValueError(f"variant '{variant}' has invalid discharge output")
+    if len(discharge) != len(window.forcing):
+        raise _ResponseFailure(
+            variant,
+            f"variant '{variant}' returned {len(discharge)} discharge rows for "
+            f"{len(window.forcing)} forcing rows",
+            {"discharge_rows": len(discharge), "forcing_rows": len(window.forcing)},
+        )
+    nonfinite = int((~np.isfinite(discharge)).sum())
+    if nonfinite:
+        raise _ResponseFailure(
+            variant,
+            f"variant '{variant}' has {nonfinite} non-finite discharge values",
+            {"nonfinite_count": nonfinite},
+        )
 
     marker = str(params.get("event_column", "_pulse"))
     if marker not in window.forcing:
@@ -109,11 +130,28 @@ def _centroid(run: RunResult, probe: ProbeSpec, params: dict, variant: str) -> t
     total = float(response.sum())
     min_fraction = float(params.get("min_response_fraction", 1.0e-4))
     pulse_depth = float(np.sum(event) * window.dt_days)
-    if total <= 0 or pulse_depth <= 0:
-        raise ValueError(f"variant '{variant}' has no measurable positive response")
+    if pulse_depth <= 0:
+        raise ValueError("wave-celerity pulse has zero integrated depth")
+    if total <= 0:
+        raise _ResponseFailure(
+            variant,
+            f"variant '{variant}' has no measurable positive response",
+            {"baseline_discharge_m3s": base, "response_peak_m3s": 0.0},
+        )
     # Use response magnitude relative to the base flow as a simple non-degeneracy guard.
-    if float(response.max()) / max(abs(base), 1.0e-12) < min_fraction:
-        raise ValueError(f"variant '{variant}' response is too small to time")
+    response_ratio = float(response.max()) / max(abs(base), 1.0e-12)
+    if response_ratio < min_fraction:
+        raise _ResponseFailure(
+            variant,
+            f"variant '{variant}' response is too small to time "
+            f"({response_ratio:.3g} of base; minimum {min_fraction:g})",
+            {
+                "baseline_discharge_m3s": base,
+                "response_peak_m3s": float(response.max()),
+                "response_to_base_ratio": response_ratio,
+                "min_response_fraction": min_fraction,
+            },
+        )
 
     centres_h = (np.arange(len(response), dtype=float) + 0.5) * window.dt_days * 24.0
     centroid_h = float(np.dot(centres_h, response) / total)
@@ -181,7 +219,18 @@ def wave_celerity_bounds(
     if not np.isfinite(separation) or separation < 0:
         raise ValueError("ordering_margin_fraction must be finite and non-negative")
 
-    measured = [_pair(runs, probe, params, state) for state in states]
+    try:
+        measured = [_pair(runs, probe, params, state) for state in states]
+    except _ResponseFailure as exc:
+        return CriterionResult(
+            name="wave_celerity_bounds",
+            status=FAIL,
+            value=1.0,
+            threshold=0.0,
+            message=str(exc),
+            diagnostics=dict(exc.diagnostics),
+        )
+
     failures: list[str] = []
     worst = 0.0
     diagnostics: dict[str, Any] = {}
