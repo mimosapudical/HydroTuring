@@ -275,7 +275,7 @@ def simulate_transient(
     fine_diag["phase"] = "fine_initialization"
 
     dx_m = reach_length_m / TRANSIENT_CELLS
-    center = TRANSIENT_CELLS // 2
+    outlet = TRANSIENT_CELLS - 1
     rows: list[dict] = []
     advance_steps = 0
     transient_started = False
@@ -310,8 +310,8 @@ def simulate_transient(
             )
             remaining -= dt_s
             advance_steps += 1
-            discharge_integral += width_m * float(unit_discharge[center]) * dt_s
-            stage_integral += (bed_m + float(depth[center])) * dt_s
+            discharge_integral += width_m * float(unit_discharge[outlet]) * dt_s
+            stage_integral += (bed_m + float(depth[outlet])) * dt_s
         rows.append({
             "time": item["time"],
             "dis": discharge_integral / output_step_s,
