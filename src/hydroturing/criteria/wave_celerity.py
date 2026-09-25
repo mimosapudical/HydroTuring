@@ -60,6 +60,11 @@ def _normal_depth(q: float, width: float, slope: float, manning_n: float) -> flo
 
 
 def _kinematic_celerity(q: float, static: dict[str, Any], variant: str) -> float:
+    shape = str(static.get("cross_section_shape", "")).strip().lower()
+    if shape != "rectangular":
+        raise ValueError(
+            f"variant '{variant}' needs cross_section_shape='rectangular'"
+        )
     width = _positive(static, "width_m", variant)
     slope = _positive(static, "slope", variant)
     manning_n = _positive(static, "manning_n", variant)
