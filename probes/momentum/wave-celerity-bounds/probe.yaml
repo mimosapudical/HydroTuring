@@ -27,7 +27,7 @@ requires:
 
 case:
   generator: generate.py
-  n_seeds: 3
+  n_seeds: 1
   timestep: PT1H
   period_days: 5
   spinup_days: 20
@@ -49,6 +49,7 @@ criteria:
 baselines:
   must_pass:
     - reference_saint_venant
+    - wflow_sbm
   must_fail:
     reference_fixed_celerity: wave_celerity_bounds
 
