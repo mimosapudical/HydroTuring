@@ -206,7 +206,9 @@ def _pair(runs: dict[str, RunResult], probe: ProbeSpec, params: dict, state: str
         return _Measurement(state, -1.0, _kinematic_celerity(q_short, short.case.static, short_name),
                             float("inf"), dt_hours, t_short, t_long)
 
-    dx = 0.5 * (length_l - length_s)
+    # Both model outputs are read at the outlet, so the paired propagation
+    # distance is the full difference in reach lengths.
+    dx = length_l - length_s
     c_obs = dx / (dt_hours * 3600.0)
     c_kin = _kinematic_celerity(q_short, short.case.static, short_name)
     residual = (c_obs - c_kin) / c_kin
