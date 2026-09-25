@@ -262,7 +262,7 @@ ht run --model wflow_sbm --gate-seeds
 
 ## Result
 
-**FAIL (VIOLATION), 18 of 21 probes passed**, adapter `1.0.4-ht.4`, on the gate seeds, every
+**FAIL (VIOLATION), 18 of 21 probes passed**, adapter `1.0.4-ht.5`, on the gate seeds, every
 case on the full record (`window_days: full`).
 
 | Probe | Verdict | Reason | Detail |
@@ -415,7 +415,7 @@ The land roughness and horizontal-conductivity settings tried on ht.1 moved neit
 violation there and were not repeated.
 
 The rows marked ht.2 were computed before `1.0.4-ht.3`. That version drops the `gw` column, adds
-to `run.json`, and takes a prescribed withdrawal through Wflow's water demand; `1.0.4-ht.4`
+to `run.json`, and takes a prescribed withdrawal through Wflow's water demand; `1.0.4-ht.5`
 relabels and adds to `run.json`. Without a withdrawal neither changes an output value: on the
 gate seeds, the archive rows for the nineteen probes other than `mass/human-abstraction` match
 the ht.2 rows in verdict and detail. That compares archive rows, not tables, since ht.2's tables
