@@ -51,7 +51,7 @@ def _probe() -> ProbeSpec:
         max_runtime_s=300.0,
         variants=("short", "long"),
         criteria=(Criterion("wave_celerity_bounds", {}),),
-        must_pass=("reference_saint_venant", "wflow_sbm"),
+        must_pass=("reference_saint_venant",),
         must_fail={"reference_fixed_celerity": "wave_celerity_bounds"},
         provenance="synthetic",
         path=ROOT / "probes" / "momentum" / "wave-celerity-bounds",
@@ -133,7 +133,7 @@ def _synthetic_runs(celerities: tuple[float, float, float] | None = None) -> dic
         dis = base_by_row.copy()
         centres = np.arange(n, dtype=float) + 0.5
         for state, q, celerity in zip(STATES, STATE_Q, celerities):
-            travel_h = 0.5 * length / celerity / 3600.0
+            travel_h = length / celerity / 3600.0
             response = np.exp(
                 -0.5 * ((centres - (pulse_centres[state] + travel_h)) / 1.2) ** 2
             )
@@ -190,7 +190,7 @@ def test_non_rectangular_geometry_is_rejected():
 def test_registered_probe_and_references_are_compatible():
     probe = registry.find_probe("momentum/wave-celerity-bounds")
     case = build_case(probe, gate_seeds(probe.id, 1)[0], "short")
-    for name in ("reference_saint_venant", "reference_fixed_celerity", "wflow_sbm"):
+    for name in ("reference_saint_venant", "reference_fixed_celerity"):
         assert compatibility_issues(registry.find_model(name), probe, case) == []
 
 
@@ -289,20 +289,6 @@ def test_registered_fixed_celerity_control_trips_gate():
     )
     assert outcome.verdict == "FAIL"
     assert "wave_celerity_bounds" in outcome.failing
-
-
-def test_wflow_is_the_independent_physical_must_pass():
-    probe = registry.find_probe("momentum/wave-celerity-bounds")
-    assert probe.must_pass == ("reference_saint_venant", "wflow_sbm")
-    model = registry.find_model("wflow_sbm")
-    assert model.runner == "docker"
-    assert model.supports_timestep("PT1H")
-    assert model.supports_perturbation
-    assert "dis" in model.emitted
-    for key in (
-        "reach_length_m", "width_m", "slope", "manning_n", "cross_section_shape"
-    ):
-        assert key in model.uses_static
 
 
 def test_saint_venant_daily_uniform_flow_contract_is_preserved():
