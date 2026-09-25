@@ -194,11 +194,11 @@ def test_registered_probe_and_references_are_compatible():
         assert compatibility_issues(registry.find_model(name), probe, case) == []
 
 
-def test_wflow_sbm_is_contract_compatible_with_wave_celerity_probe():
+def test_lisflood_is_contract_compatible_with_wave_celerity_probe():
     """The independent physical candidate must genuinely consume probe geometry."""
     probe = registry.find_probe("momentum/wave-celerity-bounds")
     case = build_case(probe, gate_seeds(probe.id, 1)[0], "short")
-    model = registry.find_model("wflow_sbm")
+    model = registry.find_model("lisflood")
     assert compatibility_issues(model, probe, case) == []
     for key in (
         "reach_length_m",
@@ -208,6 +208,8 @@ def test_wflow_sbm_is_contract_compatible_with_wave_celerity_probe():
         "cross_section_shape",
     ):
         assert key in model.uses_static
+    assert "channel_bankfull_depth_m" in case.static
+    assert "channel_bankfull_depth_m" in model.uses_static
 
 
 def test_generator_pairs_change_only_reach_length():
