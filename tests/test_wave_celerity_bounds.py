@@ -292,7 +292,7 @@ def test_fixed_celerity_fails_state_response():
     result = get("wave_celerity_bounds")(
         _synthetic_runs((1.0, 1.0, 1.0)),
         _probe(),
-        _params(relative_tolerance=10.0),
+        _params(relative_tolerance=10.0, ordering_margin_fraction=0.05),
     )
     assert not result.passed
     assert "low->medium" in result.message or "medium->high" in result.message
