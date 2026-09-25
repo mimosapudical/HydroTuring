@@ -7,28 +7,27 @@ import pandas as pd
 
 STEP_HOURS = 1
 SPINUP_DAYS = 20
-PERIOD_DAYS = 5
+STATE_BLOCK_DAYS = 8
+PERIOD_DAYS = 3 * STATE_BLOCK_DAYS
 N_STEPS = (SPINUP_DAYS + PERIOD_DAYS) * 24
 AREA_KM2 = 100.0
 
 STATE_Q = {"low": 8.0, "medium": 16.0, "high": 32.0}
 LENGTHS = {"short": 4000.0, "long": 20000.0}
+SETTLE_DAYS = 4
+PULSE_HOURS = 6
 
 
 def _effective_mm_day(q_m3s: float) -> float:
     return q_m3s * 86400.0 / (1.0e-3 * AREA_KM2 * 1.0e6)
 
 
-def generate(seed: int, variant: str = "low_short") -> tuple[pd.DataFrame, dict]:
-    try:
-        state, length_kind = variant.split("_", 1)
-        base_q = STATE_Q[state]
-        reach_length = LENGTHS[length_kind]
-    except (ValueError, KeyError):
+def generate(seed: int, variant: str = "short") -> tuple[pd.DataFrame, dict]:
+    if variant not in LENGTHS:
         raise ValueError(
-            f"unknown variant {variant!r}; expected state_length from "
-            f"{tuple(STATE_Q)} x {tuple(LENGTHS)}"
-        ) from None
+            f"unknown variant {variant!r}; expected one of {tuple(LENGTHS)}"
+        )
+    reach_length = LENGTHS[variant]
 
     rng = np.random.default_rng(seed)
     width_m = float(rng.uniform(60.0, 90.0))
@@ -36,25 +35,42 @@ def generate(seed: int, variant: str = "low_short") -> tuple[pd.DataFrame, dict]
     manning_n = float(rng.uniform(0.028, 0.038))
     bed = float(rng.uniform(40.0, 120.0))
 
-    # A small six-hour pulse around a steady positive base flow.  The same
-    # forcing is used for short and long variants of one state.  The hidden
-    # marker is removed before the model sees forcing.csv.
-    effective = np.full(N_STEPS, _effective_mm_day(base_q))
-    pulse = np.zeros(N_STEPS)
-    start = SPINUP_DAYS * 24 + 24
-    duration = 6
-    pulse[start:start + duration] = 0.05 * effective[start:start + duration]
-    pr = effective + pulse
+    # One short and one long run carry the same three hydraulic states. Each
+    # scored state gets four days to settle, then the same six-hour +5% pulse
+    # and more than three days of response tail before the next state begins.
+    # Hidden pulse columns are stripped before the model sees forcing.csv.
+    low = _effective_mm_day(STATE_Q["low"])
+    pr = np.full(N_STEPS, low)
+    pulses = {
+        state: np.zeros(N_STEPS, dtype=float)
+        for state in STATE_Q
+    }
+
+    scored_start = SPINUP_DAYS * 24
+    block_steps = STATE_BLOCK_DAYS * 24
+    settle_steps = SETTLE_DAYS * 24
+    for block, (state, q_m3s) in enumerate(STATE_Q.items()):
+        start = scored_start + block * block_steps
+        stop = start + block_steps
+        base = _effective_mm_day(q_m3s)
+        pr[start:stop] = base
+        pulse_start = start + settle_steps
+        pulse_stop = pulse_start + PULSE_HOURS
+        pulse = 0.05 * base
+        pr[pulse_start:pulse_stop] += pulse
+        pulses[state][pulse_start:pulse_stop] = pulse
+
     tas = np.full(N_STEPS, 15.0)
     pet = np.zeros(N_STEPS)
-
     time = pd.date_range("2001-01-01", periods=N_STEPS, freq="h")
     forcing = pd.DataFrame({
         "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "pr": pr,
         "tas": tas,
         "pet": pet,
-        "_pulse": pulse,
+        "_pulse_low": pulses["low"],
+        "_pulse_medium": pulses["medium"],
+        "_pulse_high": pulses["high"],
     })
     static = {
         "area_km2": AREA_KM2,
