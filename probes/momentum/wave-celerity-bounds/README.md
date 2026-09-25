@@ -16,10 +16,10 @@ and 1.5 mm canopy capacity so a full hydrologic model can settle before the
 routing transient is timed, rather than leaving a slowly filling catchment
 store inside the response centroid.
 
-The gauge is at the reach centre, so the extra propagation distance is
+Both runs are read at the reach outlet, so the paired propagation distance is
 
 ```
-Delta x = (L_long - L_short) / 2.
+Delta x = L_long - L_short.
 ```
 
 The criterion removes the pre-event discharge, takes the centroid of the
@@ -86,10 +86,9 @@ centroid delay remains resolved at the one-hour output step even at high flow.
 | `sacsma_snow17` | N/A | does not consume this reach geometry |
 | `reference_saint_venant` | gate must-pass | independent finite-volume dynamic-wave solve |
 | `reference_fixed_celerity` | gate must-fail | deliberately fixed 1 m/s propagation |
-| `wflow_sbm` | gate must-pass, pending Docker evidence | submitted Wflow.jl model; its river kinematic wave consumes the explicit reach geometry |
 
 
-`reference_saint_venant` and `wflow_sbm` are the two must-pass models. The Saint-Venant reference's daily steady path is
+`reference_saint_venant` is the CI must-pass model. Its daily steady path is
 unchanged; for sub-daily forcing it advances the same continuity and momentum
 equations continuously through each output interval using a 256-cell grid.
 The criterion does not call the solver's fluxes or internal wave speeds.
@@ -106,20 +105,20 @@ fields used by the separate routing-lag probe, not this probe's
 `reach_length_m`. Under the harness contract they are therefore
 `N/A (INCOMPATIBLE)`, not FAIL.
 
-`reference_saint_venant` is the trusted in-repository numerical reference.
-`wflow_sbm` is the independent submitted physical baseline required by
-`docs/writing-a-probe.md`. Its adapter genuinely maps explicit
-`reach_length_m`, `width_m`, `slope` and `manning_n` into Wflow's river
-static maps and lets Wflow's own kinematic-wave routing respond to them.
+`reference_saint_venant` is the trusted in-repository numerical reference,
+not the independent submitted-model evidence required by
+`docs/writing-a-probe.md`. Wflow was audited first but rejected for this role:
+its one-cell adapter reports total outlet flow dominated by overland and lateral
+subsurface routing, so its public discharge does not isolate the river wave
+this probe measures.
 
-Wflow's public `dis` output is its river kinematic-wave discharge `river.q_av`;
-`mrro` separately contains total outlet flow including overland and lateral
-subsurface outflow. Therefore the criterion reads the routing quantity the
-probe is actually about rather than a mixture of catchment flow paths. The
-Docker gate is still load-bearing because the measured timing must come from
-the real Wflow run, not from the adapter manifest or this README.
-No PASS row is written in advance. After the real Docker gate passes, the
-`wflow_sbm` row for this probe must be appended to `models/result.csv`.
+LISFLOOD is the independent physical candidate instead. Its adapter's `mrro`
+and `dis` are built from outlet `ChanQAvg`, and LISFLOOD's channel module
+uses its own kinematic-wave routing with explicit channel length, width, slope
+and Manning roughness. The branch wires those existing inputs only when the
+complete routing-geometry tuple is supplied; all older cases retain their
+historical test-catchment geometry. No PASS row is written in advance. A real
+Docker run must pass before a LISFLOOD row is appended to `models/result.csv`.
 
 ## Reproduction
 
