@@ -32,16 +32,30 @@ def _positive(params: dict, key: str, default: float, *, allow_zero: bool = Fals
     return value
 
 
-def _rectangular_celerity(discharge: float, depth: float, width: float) -> float:
-    """Return dQ/dA for the Manning rating of a rectangular section.
+def _rectangular_celerity(
+    depth: float,
+    width: float,
+    slope: float,
+    roughness: float,
+) -> float:
+    """Return dQ/dA from the declared rectangular Manning rating.
 
-    Q = K A R^(2/3), R = A / P, P = w + 2 A / w, so
+    The expected discharge is reconstructed from geometry rather than borrowed
+    from the model output:
 
-        dQ/dA = Q [5/(3A) - 4/(3 w P)].
+        Q_M = A R^(2/3) S^(1/2) / n
+        dQ_M/dA = Q_M [5/(3A) - 4/(3 w P)].
+
+    That independence matters: a model cannot make an inconsistent Q/stage pair
+    define its own expected celerity.
     """
     area = width * depth
     perimeter = width + 2.0 * depth
-    return discharge * (5.0 / (3.0 * area) - 4.0 / (3.0 * width * perimeter))
+    radius = area / perimeter
+    manning_q = area * radius ** (2.0 / 3.0) * np.sqrt(slope) / roughness
+    return manning_q * (
+        5.0 / (3.0 * area) - 4.0 / (3.0 * width * perimeter)
+    )
 
 
 def _variant_order(runs: dict[str, RunResult], probe: ProbeSpec) -> list[str]:
@@ -94,17 +108,39 @@ def _measure(
     q0 = float(np.median(discharge[first - baseline_steps:first]))
     stage0 = float(np.median(stage[first - baseline_steps:first]))
     static = run.case.static
-    required = ("width_m", "bed_elevation_m", "reach_length_m")
+    required = (
+        "width_m",
+        "bed_elevation_m",
+        "slope",
+        "manning_n",
+        "cross_section_shape",
+        "reach_length_m",
+    )
     absent = [name for name in required if name not in static]
     if absent:
         raise ValueError(f"case is missing static value(s): {', '.join(absent)}")
     width = float(static["width_m"])
     bed = float(static["bed_elevation_m"])
+    slope = float(static["slope"])
+    roughness = float(static["manning_n"])
+    shape = str(static["cross_section_shape"]).strip().lower()
+    if shape != "rectangular":
+        raise ValueError(
+            "wave_celerity_bounds requires cross_section_shape='rectangular'"
+        )
     depth = stage0 - bed
-    if not np.isfinite([q0, width, depth]).all() or q0 <= 0.0 or width <= 0.0 or depth <= 0.0:
+    numbers = np.asarray([q0, width, depth, slope, roughness], dtype=float)
+    if (
+        not np.isfinite(numbers).all()
+        or q0 <= 0.0
+        or width <= 0.0
+        or depth <= 0.0
+        or slope <= 0.0
+        or roughness <= 0.0
+    ):
         return _Response(variant, np.nan, q0, depth, np.nan, np.nan)
 
-    c_kin = _rectangular_celerity(q0, depth, width)
+    c_kin = _rectangular_celerity(depth, width, slope, roughness)
     if not np.isfinite(c_kin) or c_kin <= 0.0:
         return _Response(variant, np.nan, q0, depth, c_kin, np.nan)
 
@@ -159,6 +195,7 @@ def wave_celerity_bounds(
     for state in states:
         short = measurements[f"{state}_short"]
         long = measurements[f"{state}_long"]
+        invalid = []
         for item in (short, long):
             if not np.isfinite(
                 [
@@ -169,9 +206,12 @@ def wave_celerity_bounds(
                     item.peak_response_m3s,
                 ]
             ).all():
-                failures.append(f"{item.variant} has no finite measurable transient response")
+                failures.append(
+                    f"{item.variant} has no finite measurable transient response"
+                )
+                invalid.append(item.variant)
 
-        if failures and any(state in text for text in failures[-2:]):
+        if invalid:
             continue
 
         q_scale = max(
