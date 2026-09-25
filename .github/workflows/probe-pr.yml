@@ -86,3 +86,37 @@ jobs:
                  --probe mass/catchment-closure \
                  --seed 4242 \
                  --runner docker
+
+
+  wave_celerity_lisflood:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install
+        run: pip install -e '.[dev]'
+
+      - name: Focused validation
+        run: |
+          ht validate
+          pytest -q tests/test_wave_celerity_bounds.py tests/test_report_detail.py
+          ht gate --probe momentum/wave-celerity-bounds
+
+      - name: LISFLOOD independent physical evidence
+        run: |
+          set -o pipefail
+          rm -f /tmp/lisflood-wave.csv
+          ht run --model lisflood \
+            --probe momentum/wave-celerity-bounds \
+            --gate-seeds \
+            --csv /tmp/lisflood-wave.csv \
+            2>&1 | tee /tmp/lisflood-wave.log
+          echo "LISFLOOD_ARCHIVE_ROW_BEGIN"
+          cat /tmp/lisflood-wave.csv
+          echo "LISFLOOD_ARCHIVE_ROW_END"
