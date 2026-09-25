@@ -278,10 +278,21 @@ def simulate_transient(
     center = TRANSIENT_CELLS // 2
     rows: list[dict] = []
     advance_steps = 0
+    transient_started = False
     for item in forcing:
         inflow = _inflow_m3s(item, area_km2)
         if inflow <= 0.0:
             raise ValueError("the generated Saint-Venant reach must stay wet")
+        if not transient_started and math.isclose(
+            inflow, base_inflow, rel_tol=1.0e-12, abs_tol=1.0e-12
+        ):
+            rows.append({
+                "time": item["time"],
+                "dis": float(width_m * unit_discharge[center]),
+                "stage": float(bed_m + depth[center]),
+            })
+            continue
+        transient_started = True
         prescribed_q = inflow / width_m
         remaining = output_step_s
         discharge_integral = 0.0
