@@ -166,22 +166,23 @@ def test_criterion_is_registered_as_paired():
 
 def test_non_rectangular_geometry_is_rejected():
     runs = _synthetic_runs()
-    run = runs["short"]
-    static = dict(run.case.static)
-    static["cross_section_shape"] = "trapezoidal"
-    runs["short"] = RunResult(
-        Case(
-            probe_id=run.case.probe_id,
-            seed=run.case.seed,
-            forcing=run.case.forcing,
-            static=static,
-            spinup_steps=run.case.spinup_steps,
-            timestep=run.case.timestep,
-        ),
-        run.table,
-        run.meta,
-        run.wall_seconds,
-    )
+    for side in ("short", "long"):
+        run = runs[side]
+        static = dict(run.case.static)
+        static["cross_section_shape"] = "trapezoidal"
+        runs[side] = RunResult(
+            Case(
+                probe_id=run.case.probe_id,
+                seed=run.case.seed,
+                forcing=run.case.forcing,
+                static=static,
+                spinup_steps=run.case.spinup_steps,
+                timestep=run.case.timestep,
+            ),
+            run.table,
+            run.meta,
+            run.wall_seconds,
+        )
     with pytest.raises(ValueError, match="rectangular"):
         get("wave_celerity_bounds")(runs, _probe(), _params())
 
