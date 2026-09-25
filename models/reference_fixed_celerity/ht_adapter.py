@@ -45,7 +45,7 @@ def simulate(forcing: list[dict], static: dict) -> list[dict]:
         * 1.0e-3 * area_km2 * 1.0e6 / SECONDS_PER_DAY
         for row in forcing
     ], dtype=float)
-    delay_s = 0.5 * reach_length_m / CELERITY_M_S
+    delay_s = reach_length_m / CELERITY_M_S
     delay_steps = delay_s / dt_s
     x = np.arange(len(q), dtype=float)
     # Fractional-step causal delay. Before the record starts, extend the first
