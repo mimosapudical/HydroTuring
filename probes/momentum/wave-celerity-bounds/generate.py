@@ -12,7 +12,7 @@ N_STEPS = (SPINUP_DAYS + PERIOD_DAYS) * 24
 AREA_KM2 = 100.0
 
 STATE_Q = {"low": 8.0, "medium": 16.0, "high": 32.0}
-LENGTHS = {"short": 4000.0, "long": 12000.0}
+LENGTHS = {"short": 4000.0, "long": 20000.0}
 
 
 def _effective_mm_day(q_m3s: float) -> float:
@@ -31,7 +31,7 @@ def generate(seed: int, variant: str = "low_short") -> tuple[pd.DataFrame, dict]
         ) from None
 
     rng = np.random.default_rng(seed)
-    width_m = float(rng.uniform(18.0, 28.0))
+    width_m = float(rng.uniform(60.0, 90.0))
     slope = float(rng.uniform(8.0e-4, 2.0e-3))
     manning_n = float(rng.uniform(0.028, 0.038))
     bed = float(rng.uniform(40.0, 120.0))
