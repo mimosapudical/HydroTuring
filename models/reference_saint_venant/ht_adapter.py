@@ -23,6 +23,7 @@ import argparse
 import csv
 import json
 import math
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -31,6 +32,7 @@ MODEL = {"name": "reference_saint_venant", "version": "1.0.0"}
 SECONDS_PER_DAY = 86400.0
 GRAVITY = 9.80665
 N_CELLS = 64
+TRANSIENT_N_CELLS = 256
 CFL = 0.45
 MIN_DEPTH_M = 1.0e-4
 MAX_STEPS = 120_000
@@ -70,12 +72,15 @@ def _advance(
     slope: float,
     manning_n: float,
     dx_m: float,
+    max_dt_s: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray, float]:
     """Advance one CFL-limited finite-volume step."""
     speed = np.max(
         np.abs(unit_discharge / depth) + np.sqrt(GRAVITY * depth)
     )
     dt_s = CFL * dx_m / max(float(speed), 1.0e-6)
+    if max_dt_s is not None:
+        dt_s = min(dt_s, float(max_dt_s))
 
     h_ext = np.empty(len(depth) + 2, dtype=float)
     q_ext = np.empty(len(depth) + 2, dtype=float)
@@ -204,7 +209,100 @@ def solve_steady_reach(
     return depth, unit_discharge, diagnostics
 
 
+def _forcing_discharge(item: dict, area_km2: float) -> float:
+    effective_mm_day = max(float(item["pr"]) - float(item["pet"]), 0.0)
+    return effective_mm_day * 1.0e-3 * area_km2 * 1.0e6 / SECONDS_PER_DAY
+
+
+def _forcing_step_seconds(forcing: list[dict]) -> float:
+    if len(forcing) < 2:
+        raise ValueError("transient Saint-Venant mode needs at least two forcing rows")
+    times = [
+        datetime.fromisoformat(str(item["time"]).replace("Z", "+00:00"))
+        for item in forcing
+    ]
+    step_s = (times[1] - times[0]).total_seconds()
+    if not math.isfinite(step_s) or step_s <= 0.0:
+        raise ValueError("forcing timestamps must increase by a positive fixed step")
+    if any(
+        not math.isclose((right - left).total_seconds(), step_s, rel_tol=0.0, abs_tol=1.0e-9)
+        for left, right in zip(times[:-1], times[1:])
+    ):
+        raise ValueError("transient Saint-Venant mode needs a fixed forcing step")
+    return step_s
+
+
+def _simulate_transient(
+    forcing: list[dict],
+    static: dict,
+) -> tuple[list[dict], list[dict]]:
+    """Advance the Saint-Venant state through every forcing interval."""
+    area_km2 = float(static["area_km2"])
+    width_m = float(static["width_m"])
+    bed_m = float(static["bed_elevation_m"])
+    slope = float(static["slope"])
+    manning_n = float(static["manning_n"])
+    reach_length_m = float(static["reach_length_m"])
+    shape = str(static.get("cross_section_shape", "rectangular")).strip().lower()
+    if shape != "rectangular":
+        raise ValueError("reference_saint_venant requires a rectangular section")
+
+    step_s = _forcing_step_seconds(forcing)
+    base_inflow = _forcing_discharge(forcing[0], area_km2)
+    depth, unit_discharge, equilibrium = solve_steady_reach(
+        base_inflow,
+        width_m,
+        slope,
+        manning_n,
+        reach_length_m,
+        n_cells=TRANSIENT_N_CELLS,
+    )
+    dx_m = reach_length_m / TRANSIENT_N_CELLS
+    center = TRANSIENT_N_CELLS // 2
+
+    rows: list[dict] = []
+    total_substeps = 0
+    for item in forcing:
+        inflow = _forcing_discharge(item, area_km2)
+        if inflow <= 0.0:
+            raise ValueError("the generated Saint-Venant reach must stay wet")
+        prescribed_q = inflow / width_m
+        remaining = step_s
+        while remaining > 1.0e-9:
+            depth, unit_discharge, dt_s = _advance(
+                depth,
+                unit_discharge,
+                prescribed_q,
+                width_m,
+                slope,
+                manning_n,
+                dx_m,
+                max_dt_s=remaining,
+            )
+            remaining -= dt_s
+            total_substeps += 1
+        rows.append({
+            "time": item["time"],
+            "dis": float(width_m * unit_discharge[center]),
+            "stage": float(bed_m + depth[center]),
+        })
+
+    diagnostics = {
+        "mode": "transient",
+        "cells": TRANSIENT_N_CELLS,
+        "cfl": CFL,
+        "output_step_s": step_s,
+        "substeps": total_substeps,
+        "initial_equilibrium": equilibrium,
+        "normal_depth_lookup": False,
+    }
+    return rows, [diagnostics]
+
+
 def simulate(forcing: list[dict], static: dict) -> tuple[list[dict], list[dict]]:
+    if bool(static.get("transient_wave", False)):
+        return _simulate_transient(forcing, static)
+
     area_km2 = float(static["area_km2"])
     width_m = float(static["width_m"])
     bed_m = float(static["bed_elevation_m"])
@@ -222,8 +320,7 @@ def simulate(forcing: list[dict], static: dict) -> tuple[list[dict], list[dict]]
     solves: list[dict] = []
     rows: list[dict] = []
     for item in forcing:
-        effective_mm_day = max(float(item["pr"]) - float(item["pet"]), 0.0)
-        inflow = effective_mm_day * 1.0e-3 * area_km2 * 1.0e6 / SECONDS_PER_DAY
+        inflow = _forcing_discharge(item, area_km2)
         if inflow <= 0.0:
             raise ValueError("the generated Saint-Venant reach must stay wet")
 
