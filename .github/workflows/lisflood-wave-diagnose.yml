@@ -1,0 +1,88 @@
+name: lisflood-wave-diagnose
+
+on:
+  pull_request:
+    paths:
+      - 'probes/momentum/wave-celerity-bounds/**'
+      - 'models/lisflood/**'
+      - '.github/workflows/lisflood-wave-diagnose.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install
+        run: pip install -e '.[dev]'
+      - name: Run one LISFLOOD gate seed and inspect paired responses
+        run: |
+          set +e
+          rm -rf /tmp/lisdiag
+          ht run --model lisflood \
+                 --probe momentum/wave-celerity-bounds \
+                 --seed 397273707 \
+                 --workdir /tmp/lisdiag \
+                 > /tmp/lisflood-wave-report.txt 2>&1
+          rc=$?
+          echo "LISFLOOD_WAVE_RC=$rc"
+          cat /tmp/lisflood-wave-report.txt
+          python - <<'PY'
+          from pathlib import Path
+          import numpy as np
+          import pandas as pd
+
+          root = Path("/tmp/lisdiag")
+          spin = 20 * 24
+          block = 8 * 24
+          settle = 4 * 24
+          states = ["low", "medium", "high"]
+          lengths = {"short": 4000.0, "long": 20000.0}
+          tables = {}
+          for side in ("short", "long"):
+              matches = list(root.glob(f"**/*{side}*/output/result.csv"))
+              if not matches:
+                  print("NO_RESULT", side, list(root.rglob("result.csv")))
+                  continue
+              path = matches[0]
+              tables[side] = pd.read_csv(path)
+              print(f"RESULT_PATH {side}={path}")
+
+          print("BASE_DIAGNOSTICS_BEGIN")
+          if set(tables) == {"short", "long"}:
+              for i, state in enumerate(states):
+                  pulse = spin + i * block + settle
+                  bases = {}
+                  cents = {}
+                  for side in ("short", "long"):
+                      q = pd.to_numeric(tables[side]["dis"], errors="raise").to_numpy(float)
+                      base = float(np.mean(q[pulse-12:pulse]))
+                      bases[side] = base
+                      stop = min(len(q), pulse + 72)
+                      resp = np.clip(q[pulse:stop] - base, 0.0, None)
+                      centres = np.arange(pulse, stop, dtype=float) + 0.5
+                      cents[side] = (
+                          float(np.dot(centres, resp) / resp.sum())
+                          if resp.sum() > 0 else float("nan")
+                      )
+                  rel = abs(bases["long"] - bases["short"]) / max(abs(bases["short"]), 1e-12)
+                  dt_h = cents["long"] - cents["short"]
+                  c_obs = (
+                      (lengths["long"] - lengths["short"]) / (dt_h * 3600.0)
+                      if dt_h > 0 else float("nan")
+                  )
+                  print(
+                      f"STATE={state} q_short={bases['short']:.9g} q_long={bases['long']:.9g} "
+                      f"base_rel_diff={rel:.6%} centroid_short_h={cents['short']:.6f} "
+                      f"centroid_long_h={cents['long']:.6f} dt_h={dt_h:.6f} c_obs={c_obs:.6f}"
+                  )
+          print("BASE_DIAGNOSTICS_END")
+          PY
+          exit 0
