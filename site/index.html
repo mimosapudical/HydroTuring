@@ -768,7 +768,7 @@ en: {
 <tr><td class="mono">momentum/channel-routing-mass</td><td>momentum</td><td>Inflow minus outflow minus the change in channel storage, per reach.</td><td><span class="tag wanted">wanted</span></td></tr>
 <tr><td class="mono">momentum/stage-discharge-monotonic</td><td>momentum</td><td>A stage reading rises with discharge, and where the rating loops, the rising limb sits lower than the falling one at the same discharge.</td><td><span class="tag merged">merged</span></td></tr>
 <tr><td class="mono">momentum/uniform-flow-friction-consistency</td><td>momentum</td><td>At three steady flows, discharge and stage must satisfy one Manning balance with the declared rectangular geometry and roughness.</td><td><span class="tag merged">merged</span></td></tr>
-<tr><td class="mono">momentum/wave-celerity-bounds</td><td>momentum</td><td>Kinematic wave celerity must be positive and near the Manning expectation.</td><td><span class="tag merged">wanted</span></td></tr>merged</span></td></tr>
+<tr><td class="mono">momentum/wave-celerity-bounds</td><td>momentum</td><td>Across low, medium and high flow, paired short and long reaches must imply downstream transient celerity near the Manning expectation and increasing with hydraulic state.</td><td><span class="tag merged">merged</span></td></tr>
 <tr><td class="mono">momentum/froude-regime</td><td>momentum</td><td>Flow in a mild-sloped reach must stay subcritical.</td><td><span class="tag wanted">wanted</span></td></tr>`,
   "verdict.h":"Verdicts",
   "verdict.body":`<p>A probe that can ask the model something passes or fails it, with the reason recorded separately, because these mean very different things. A probe that cannot ask it anything is <strong>N/A</strong>: not scored, and neither a pass nor a fail.</p>
@@ -991,7 +991,7 @@ es: {
 <tr><td class="mono">momentum/channel-routing-mass</td><td>momento</td><td>Entrada menos salida menos el cambio de almacenamiento en el cauce, por tramo.</td><td><span class="tag wanted">se busca</span></td></tr>
 <tr><td class="mono">momentum/stage-discharge-monotonic</td><td>momento</td><td>La cota sube con el caudal y, donde la curva forma un bucle, la rama ascendente queda por debajo de la descendente a un mismo caudal.</td><td><span class="tag merged">integrada</span></td></tr>
 <tr><td class="mono">momentum/uniform-flow-friction-consistency</td><td>momento</td><td>En tres caudales estacionarios, caudal y cota deben satisfacer un mismo balance de Manning con la geometría rectangular y rugosidad declaradas.</td><td><span class="tag merged">integrada</span></td></tr>
-<tr><td class="mono">momentum/wave-celerity-bounds</td><td>momento</td><td>La celeridad de la onda cinemática debe ser positiva y cercana a la esperada por Manning.</td><td><span class="tag wanted">se busca</span></td></tr>
+<tr><td class="mono">momentum/wave-celerity-bounds</td><td>momento</td><td>Entre caudales bajos, medios y altos, los pares de tramos corto/largo deben implicar una celeridad transitoria aguas abajo cercana a la expectativa de Manning y creciente con el estado hidráulico.</td><td><span class="tag merged">integrada</span></td></tr>
 <tr><td class="mono">momentum/froude-regime</td><td>momento</td><td>El flujo en un tramo de pendiente suave debe mantenerse subcrítico.</td><td><span class="tag wanted">se busca</span></td></tr>`,
   "verdict.h":"Veredictos",
   "verdict.body":`<p>Una prueba que puede preguntarle algo al modelo lo aprueba o lo reprueba, con el motivo registrado por separado, porque significan cosas muy distintas. Una prueba que no puede preguntarle nada es <strong>N/A</strong>: no se puntúa, y no es ni un aprobado ni un fallo.</p>
@@ -1214,7 +1214,7 @@ zh: {
 <tr><td class="mono">momentum/channel-routing-mass</td><td>动量</td><td>逐河段：入流减出流减河道蓄量变化。</td><td><span class="tag wanted">征集中</span></td></tr>
 <tr><td class="mono">momentum/stage-discharge-monotonic</td><td>动量</td><td>水位随流量单调上升；出现绳套时，同一流量下涨洪段的水位低于落洪段。</td><td><span class="tag merged">已合并</span></td></tr>
 <tr><td class="mono">momentum/uniform-flow-friction-consistency</td><td>动量</td><td>在三个稳态流量下，流量与水位必须和所声明的矩形河道几何及糙率满足同一个曼宁平衡。</td><td><span class="tag merged">已合并</span></td></tr>
-<tr><td class="mono">momentum/wave-celerity-bounds</td><td>动量</td><td>运动波波速必须为正，且接近曼宁公式的预期。</td><td><span class="tag wanted">征集中</span></td></tr>
+<tr><td class="mono">momentum/wave-celerity-bounds</td><td>动量</td><td>在低、中、高流量下，短/长河段配对应给出向下游传播、接近曼宁预期且随水力状态增大的瞬态波速。</td><td><span class="tag merged">已合并</span></td></tr>
 <tr><td class="mono">momentum/froude-regime</td><td>动量</td><td>缓坡河段的水流必须保持缓流。</td><td><span class="tag wanted">征集中</span></td></tr>`,
   "verdict.h":"判定结果",
   "verdict.body":`<p>能够向模型提出问题的检验项给出通过或未通过的结论，失败原因单独记录，因为两者的科学含义完全不同。无法向模型提出任何问题的检验项记为 <strong>N/A</strong>：不计分，既不算通过，也不算未通过。</p>
