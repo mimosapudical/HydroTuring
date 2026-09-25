@@ -17,7 +17,7 @@ on:
       - '.gitattributes'
       - '.github/workflows/probe-pr.yml'
   push:
-    branches: [main, probe-wave-celerity-bounds]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
