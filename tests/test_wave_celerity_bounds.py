@@ -72,7 +72,7 @@ def _normal_depth(q: float, width: float, slope: float, n: float) -> float:
     return (lo + hi) / 2
 
 
-def _c_kin(q: float, width=22.0, slope=0.0012, n=0.033) -> float:
+def _c_kin(q: float, width=75.0, slope=0.0012, n=0.033) -> float:
     h = _normal_depth(q, width, slope, n)
     a = width * h
     p = width + 2*h
@@ -89,7 +89,7 @@ def _synthetic_runs(celerities=(1.1, 1.5, 2.0)) -> dict[str, RunResult]:
     time = pd.date_range("2001-01-01", periods=n, freq="h")
     runs = {}
     for state, q, c in zip(("low", "medium", "high"), (8.0, 16.0, 32.0), celerities):
-        for side, length in (("short", 4000.0), ("long", 12000.0)):
+        for side, length in (("short", 4000.0), ("long", 20000.0)):
             forcing = pd.DataFrame({
                 "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
                 "pr": np.full(n, q * 0.864),
@@ -109,7 +109,7 @@ def _synthetic_runs(celerities=(1.1, 1.5, 2.0)) -> dict[str, RunResult]:
                 forcing=forcing,
                 static={
                     "area_km2": 100.0,
-                    "width_m": 22.0,
+                    "width_m": 75.0,
                     "cross_section_shape": "rectangular",
                     "bed_elevation_m": 50.0,
                     "slope": 0.0012,
