@@ -76,11 +76,16 @@ def generate(seed: int, variant: str = "short") -> tuple[pd.DataFrame, dict]:
         "area_km2": AREA_KM2,
         "soil_capacity_mm": 80.0,
         "canopy_capacity_mm": 1.5,
+        "latitude_deg": 40.0,
         "width_m": width_m,
         "cross_section_shape": "rectangular",
         "bed_elevation_m": bed,
         "slope": slope,
         "manning_n": manning_n,
         "reach_length_m": reach_length,
+        # LISFLOOD evaluates its kinematic-wave alpha at half bankfull.
+        # A 1 m bankfull depth puts that reference near the three generated
+        # normal-flow states while the 60--90 m channel stays nearly rectangular.
+        "channel_bankfull_depth_m": 1.0,
     }
     return forcing, static
