@@ -207,6 +207,47 @@ def test_analytic_measurement_passes_when_celerity_matches_manning():
     assert result.passed, result.message
 
 
+def test_zero_response_is_a_scientific_failure_not_an_exception():
+    runs = _synthetic_runs()
+    run = runs["medium_long"]
+    table = run.table.copy()
+    table["dis"] = 16.0
+    runs["medium_long"] = RunResult(run.case, table, run.meta, run.wall_seconds)
+    result = get("wave_celerity_bounds")(
+        runs,
+        _probe(),
+        {
+            "event_column": "_pulse",
+            "states": ["low", "medium", "high"],
+            "relative_tolerance": 0.05,
+            "baseline_hours": 12,
+        },
+    )
+    assert not result.passed
+    assert result.diagnostics["variant"] == "medium_long"
+    assert "no measurable positive response" in result.message
+
+
+def test_nonfinite_discharge_is_a_scientific_failure_not_an_exception():
+    runs = _synthetic_runs()
+    run = runs["high_short"]
+    table = run.table.copy()
+    table.loc[90, "dis"] = np.nan
+    runs["high_short"] = RunResult(run.case, table, run.meta, run.wall_seconds)
+    result = get("wave_celerity_bounds")(
+        runs,
+        _probe(),
+        {
+            "event_column": "_pulse",
+            "states": ["low", "medium", "high"],
+            "relative_tolerance": 0.05,
+            "baseline_hours": 12,
+        },
+    )
+    assert not result.passed
+    assert result.diagnostics == {"variant": "high_short", "nonfinite_count": 1}
+
+
 def test_fixed_celerity_fails_state_response():
     result = get("wave_celerity_bounds")(
         _synthetic_runs((1.0, 1.0, 1.0)),
