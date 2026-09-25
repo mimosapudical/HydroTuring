@@ -1,10 +1,10 @@
 name: reference_saint_venant
-version: "1.0.0"
+version: "1.1.0"
 description: >
   A one-dimensional finite-volume Saint-Venant solver for a prismatic
   rectangular reach. It prescribes upstream discharge, advances continuity
   and momentum with bed-slope and Manning-friction source terms from a
-  non-equilibrium state, and reports the interior gauge after the reach has
+  non-equilibrium state. Daily cases retain the settled-state path; sub-daily\n  cases continuously advance the same equations through each output interval\n  and report the interior gauge after the reach has
   converged. It never evaluates or inverts the Manning normal-depth formula.
 authors: ["HydroTuring maintainers"]
 license: PolyForm-Noncommercial-1.0.0
