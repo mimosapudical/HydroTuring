@@ -159,7 +159,6 @@ def _centroid(
             f"variant '{variant}' has no measurable positive response",
             {
                 "discharge_column": discharge_name,
-                "discharge_column": discharge_name,
                 "baseline_discharge_m3s": base,
                 "response_peak_m3s": 0.0,
             },
@@ -172,6 +171,7 @@ def _centroid(
             f"variant '{variant}' response is too small to time "
             f"({response_ratio:.3g} of base; minimum {min_fraction:g})",
             {
+                "discharge_column": discharge_name,
                 "baseline_discharge_m3s": base,
                 "response_peak_m3s": float(response.max()),
                 "response_to_base_ratio": response_ratio,
