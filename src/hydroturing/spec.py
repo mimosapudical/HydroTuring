@@ -37,14 +37,13 @@ STATE_VARS = ("mrso", "snw", "canopy", "gw", "channel")
 # is declared for the same reason `sbl` is -- a criterion cannot otherwise know
 # which part of a pack is ice, and a fall in `snw` is net water leaving the
 # pack rather than evidence of a phase change.
-DIAG_VARS = ("ts", "tsoil_layer", "stage", "lwsnl", "csnow", "river_dis")
+DIAG_VARS = ("ts", "tsoil_layer", "stage", "lwsnl", "csnow")
 
 UNITS = {
     "pr": "mm day-1",
     "evspsbl": "mm day-1",
     "mrro": "mm day-1",
     "dis": "m3 s-1",
-    "river_dis": "m3 s-1",
     "gwex": "mm day-1",
     # Net river-aquifer exchange, positive into the aquifer. Unlike gwex
     # (a source or sink crossing the catchment boundary), this moves water
