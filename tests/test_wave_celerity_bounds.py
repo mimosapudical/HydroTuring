@@ -64,6 +64,7 @@ def _params(**overrides) -> dict:
         "event_columns": dict(EVENT_COLUMNS),
         "relative_tolerance": 0.05,
         "baseline_hours": 12,
+        "input_tracking_tolerance": 0.01,
         "response_hours": 72,
         "timing_floor_hours": 0.05,
         "ordering_margin_fraction": 0.0,
@@ -393,6 +394,19 @@ def test_pair_rejects_any_static_change_besides_reach_length():
         long.wall_seconds,
     )
     with pytest.raises(ValueError, match="differ in static 'width_m'"):
+        get("wave_celerity_bounds")(runs, _probe(), _params())
+
+
+def test_pair_rejects_equal_outputs_that_ignore_prescribed_q_in():
+    runs = _synthetic_runs()
+    for side in ("short", "long"):
+        run = runs[side]
+        table = run.table.copy()
+        # Both variants remain mutually consistent, but the model's low-state
+        # base no longer matches the q_in that supposedly drives the reach.
+        table.loc[:143, "dis"] = table.loc[:143, "dis"] + 0.2
+        runs[side] = RunResult(run.case, table, run.meta, run.wall_seconds)
+    with pytest.raises(ValueError, match="does not track prescribed q_in"):
         get("wave_celerity_bounds")(runs, _probe(), _params())
 
 
