@@ -11,10 +11,7 @@ For each seed, the generator draws one mild prismatic rectangular reach
 geometry and creates three positive base discharges: 8, 16 and 32 m3/s. Only two model runs are needed per seed: a 4 km `short` reach and a 20 km
 `long` reach with byte-identical forcing. Inside each run, low, medium and high
 hydraulic states occupy successive eight-day blocks. Each block gets four days
-to settle, then a six-hour +5% pulse and more than three days of response tail. The case also supplies a small 80 mm soil capacity
-and 1.5 mm canopy capacity so a full hydrologic model can settle before the
-routing transient is timed, rather than leaving a slowly filling catchment
-store inside the response centroid.
+to settle, then a six-hour +5% pulse and more than three days of response tail.
 
 Both runs are read at the reach outlet, so the paired propagation distance is
 
@@ -86,7 +83,6 @@ centroid delay remains resolved at the one-hour output step even at high flow.
 | `sacsma_snow17` | N/A | does not consume this reach geometry |
 | `reference_saint_venant` | gate must-pass | independent finite-volume dynamic-wave solve |
 | `reference_fixed_celerity` | gate must-fail | deliberately fixed 1 m/s propagation |
-| `lisflood` | independent candidate | real kinematic-wave channel; PASS must be established by Round 2 Docker run before archiving |
 
 
 `reference_saint_venant` is the CI must-pass model. Its daily steady path is
@@ -113,13 +109,17 @@ its one-cell adapter reports total outlet flow dominated by overland and lateral
 subsurface routing, so its public discharge does not isolate the river wave
 this probe measures.
 
-LISFLOOD is the independent physical candidate instead. Its adapter's `mrro`
-and `dis` are built from outlet `ChanQAvg`, and LISFLOOD's channel module
-uses its own kinematic-wave routing with explicit channel length, width, slope
-and Manning roughness. The branch wires those existing inputs only when the
-complete routing-geometry tuple is supplied; all older cases retain their
-historical test-catchment geometry. No PASS row is written in advance. A real
-Docker run must pass before a LISFLOOD row is appended to `models/result.csv`.
+LISFLOOD was also audited as an independent candidate and rejected
+rather than tuned to pass. Wiring the declared geometry into its native
+kinematic-wave channel produced, on gate seed 397273707, observed paired
+celerities of about 12.9, 43.7 and 63.1 m/s versus Manning expectations of
+about 0.66, 0.78 and 1.00 m/s. Refining LISFLOOD's channel routing sub-step
+from 3600 s to 300 s changed those values only to about 12.8, 43.4 and
+62.7 m/s. The mismatch is therefore not the probe's five-percent allowance
+or hourly timing quantisation. No LISFLOOD PASS row is claimed or archived.
+
+The independent submitted-physical-model evidence required by
+`docs/writing-a-probe.md` remains the outstanding merge prerequisite.
 
 ## Reproduction
 
