@@ -298,7 +298,7 @@ ht run --model wflow_sbm --probe momentum/wave-celerity-bounds --gate-seeds
 
 ## Result
 
-**FAIL (VIOLATION), 18 of 21 probes passed**, adapter `1.0.4-ht.4`, on the gate seeds, every
+**FAIL (VIOLATION), 19 of 22 probes passed**, adapter `1.0.4-ht.4`, on the gate seeds, every
 case on the full record (`window_days: full`).
 
 | Probe | Verdict | Reason | Detail |
