@@ -18,10 +18,6 @@ SETTLE_DAYS = 4
 PULSE_HOURS = 6
 
 
-def _effective_mm_day(q_m3s: float) -> float:
-    return q_m3s * 86400.0 / (1.0e-3 * AREA_KM2 * 1.0e6)
-
-
 def generate(seed: int, variant: str = "short") -> tuple[pd.DataFrame, dict]:
     if variant not in LENGTHS:
         raise ValueError(
@@ -38,9 +34,12 @@ def generate(seed: int, variant: str = "short") -> tuple[pd.DataFrame, dict]:
     # One short and one long run carry the same three hydraulic states. Each
     # scored state gets four days to settle, then the same six-hour +5% pulse
     # and more than three days of response tail before the next state begins.
-    # Hidden pulse columns are stripped before the model sees forcing.csv.
-    low = _effective_mm_day(STATE_Q["low"])
-    pr = np.full(N_STEPS, low)
+    # q_in is a prescribed river inflow in m3/s. Hidden pulse columns are
+    # stripped before the model sees forcing.csv. pr is deliberately zero:
+    # this probe enters at the routing control volume rather than asking a
+    # land model to manufacture the inflow from rainfall.
+    q_in = np.full(N_STEPS, STATE_Q["low"], dtype=float)
+    pr = np.zeros(N_STEPS, dtype=float)
     pulses = {
         state: np.zeros(N_STEPS, dtype=float)
         for state in STATE_Q
@@ -52,12 +51,11 @@ def generate(seed: int, variant: str = "short") -> tuple[pd.DataFrame, dict]:
     for block, (state, q_m3s) in enumerate(STATE_Q.items()):
         start = scored_start + block * block_steps
         stop = start + block_steps
-        base = _effective_mm_day(q_m3s)
-        pr[start:stop] = base
+        q_in[start:stop] = q_m3s
         pulse_start = start + settle_steps
         pulse_stop = pulse_start + PULSE_HOURS
-        pulse = 0.05 * base
-        pr[pulse_start:pulse_stop] += pulse
+        pulse = 0.05 * q_m3s
+        q_in[pulse_start:pulse_stop] += pulse
         pulses[state][pulse_start:pulse_stop] = pulse
 
     tas = np.full(N_STEPS, 15.0)
@@ -67,6 +65,7 @@ def generate(seed: int, variant: str = "short") -> tuple[pd.DataFrame, dict]:
         "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "pr": pr,
         "tas": tas,
+        "q_in": q_in,
         "pet": pet,
         "_pulse_low": pulses["low"],
         "_pulse_medium": pulses["medium"],
