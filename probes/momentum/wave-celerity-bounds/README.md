@@ -165,12 +165,15 @@ from 3600 s to 300 s changed those values only to about 12.8, 43.4 and
 or hourly timing quantisation. No LISFLOOD PASS row is claimed or archived.
 
 The independent submitted-physical-model evidence required by
-`docs/writing-a-probe.md` remains the outstanding merge prerequisite.
-Accepted model proposal #132, mizuRoute, is a natural candidate because it is a
-routing-only physical model with native hourly reach discharge and explicit
-kinematic-wave routing, but it is still open and unimplemented in this
-repository. This probe does not claim its result in advance or take ownership
-of that separate model contribution.
+`docs/writing-a-probe.md` remains the outstanding merge prerequisite. No
+unimplemented proposal is counted as that evidence. Accepted model proposal
+#132, mizuRoute, is scientifically relevant because it is a routing-only
+physical model with native hourly reach discharge and explicit kinematic-wave
+schemes, but it consumes lateral runoff rather than the rainfall forcing used
+by this paired experiment and its separate reach-routing infrastructure is
+still under review. #148 therefore does not depend on, claim a result from, or
+take ownership of that model contribution. A future submitted model counts
+only after it can run this experiment honestly and archive a passing row.
 
 ## Reproduction
 
