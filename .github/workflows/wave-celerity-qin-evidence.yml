@@ -1,0 +1,36 @@
+name: wave-celerity-qin-evidence
+
+on:
+  push:
+    branches: [probe-wave-celerity-qin]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wflow-qin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install
+        run: pip install -e '.[dev]'
+      - name: Validate benchmark
+        run: ht validate
+      - name: Focused q_in regressions
+        run: pytest -q tests/test_wave_celerity_bounds.py
+      - name: Verify Wflow adapter contract on #148
+        run: ht verify-adapter --model wflow_sbm --probe momentum/wave-celerity-bounds
+      - name: Run Wflow on #148 gate seeds
+        run: |
+          ht run --model wflow_sbm \
+            --probe momentum/wave-celerity-bounds \
+            --gate-seeds \
+            --json /tmp/wflow-qin.json \
+            --markdown
+          cat /tmp/wflow-qin.json
