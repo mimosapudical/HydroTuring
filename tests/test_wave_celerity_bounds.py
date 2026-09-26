@@ -253,9 +253,13 @@ def test_centroid_pair_recovers_state_dependent_celerity_under_hayami_diffusion(
         _params(),
     )
     assert result.passed, result.message
-    for state in STATES:
+    for state, q in zip(STATES, STATE_Q):
         diag = result.diagnostics["states"][state]
         assert abs(diag["relative_residual"]) < 0.05
+        expected_diffusivity = 5.0 * q / (2.0 * 75.0 * 0.0012)
+        inferred_diffusivity = diag["paired_diffusivity_m2_s"]
+        assert inferred_diffusivity is not None
+        assert abs(inferred_diffusivity / expected_diffusivity - 1.0) < 0.20
 
 
 
