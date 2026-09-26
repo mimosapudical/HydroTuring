@@ -217,6 +217,15 @@ Both runs are read at the reach outlet, so the paired propagation distance is
 Delta x = L_long - L_short.
 ```
 
+The accepted proposal sketched a centre gauge, which would have used half this
+distance. The production contract exposes outlet `dis`, so the implementation
+uses the outlet consistently in both variants and therefore the full length
+difference. This changes only the observation geometry, not the tested
+state-dependent-celerity hypothesis. The production case also uses the public
+routing input `q_in` directly instead of manufacturing the same inflow from
+rainfall, removing a land-model confound identified during the physical-model
+audit.
+
 The criterion removes the pre-event discharge, takes the centroid of the
 positive transient response, and estimates
 
