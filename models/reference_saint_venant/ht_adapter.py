@@ -227,6 +227,12 @@ def _forcing_step_seconds(forcing: list[dict]) -> float:
 
 
 def _inflow_m3s(item: dict, area_km2: float) -> float:
+    # q_in is the reach-only contract: prescribed upstream river discharge
+    # in m3/s.  Keep the older precipitation-equivalent path for the merged
+    # steady-friction probe and other existing users of this reference.
+    raw_q_in = item.get("q_in")
+    if raw_q_in not in (None, ""):
+        return float(raw_q_in)
     effective_mm_day = max(float(item["pr"]) - float(item["pet"]), 0.0)
     return effective_mm_day * 1.0e-3 * area_km2 * 1.0e6 / SECONDS_PER_DAY
 
