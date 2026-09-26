@@ -223,6 +223,13 @@ def test_generator_pairs_change_only_reach_length():
     assert s == l
 
 
+def test_generator_uses_lisflood_native_contributing_area():
+    probe = registry.find_probe("momentum/wave-celerity-bounds")
+    case = build_case(probe, gate_seeds(probe.id, 1)[0], "short")
+    assert case.static["area_km2"] == 25.0
+    assert case.static["channel_bankfull_depth_m"] == 1.0
+
+
 def test_generator_has_three_isolated_pulses_and_response_tail():
     probe = registry.find_probe("momentum/wave-celerity-bounds")
     case = build_case(probe, gate_seeds(probe.id, 1)[0], "short")
