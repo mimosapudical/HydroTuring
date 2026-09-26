@@ -298,7 +298,7 @@ resolved at the one-hour output step even at high flow.
 | `sacsma_snow17` | N/A | does not consume this reach geometry |
 | `reference_saint_venant` | gate must-pass | independent finite-volume dynamic-wave solve |
 | `reference_fixed_celerity` | gate must-fail | deliberately fixed 1 m/s propagation |
-
+| `wflow_sbm` | submitted-model PASS | Deltares Wflow.jl native river kinematic wave, run through an independent Docker adapter path |
 
 `reference_saint_venant` is the CI must-pass model. Its daily steady path is
 unchanged; for sub-daily forcing it advances the same continuity and momentum
@@ -311,43 +311,69 @@ state. It remains positive and length-dependent, but cannot satisfy the
 low/medium/high state response.
 
 The four general physical baselines are intentionally not forced through this
-probe. `reference_bucket`, `flex_topo` and `sacsma_snow17` do not declare
-consumption of reach length; `flex_lumped` consumes catchment channel-length
-fields used by the separate routing-lag probe, not this probe's
-`reach_length_m`. Under the harness contract they are therefore
-`N/A (INCOMPATIBLE)`, not FAIL.
+probe. `reference_bucket`, `flex_topo` and `sacsma_snow17` have no
+reach-wave process, while `flex_lumped`'s existing geometry path is the
+catchment-scale triangular lag used by the separate routing-lag probe. Extending
+one of those models would invent the process rather than expose an existing
+one. This is the process-missing exception documented in
+`docs/writing-a-probe.md`: the exact reference remains the fast acceptance
+gate, while a submitted physical model with the process supplies the
+independent archived evidence.
 
-`reference_saint_venant` is the trusted in-repository numerical reference,
-not the independent submitted-model evidence required by
-`docs/writing-a-probe.md`. Wflow was audited first but rejected for this role.
-Its native river `q_av` was tested separately from total catchment runoff, with
-the declared length, width, slope and Manning roughness wired into Wflow's
-existing river kinematic wave. The short and long cases nevertheless settled
-to different base river discharges before the celerity criterion could be
-evaluated. In this one-cell land/river/outlet schematisation, changing reach
-geometry changes the hydraulic base state as well as propagation distance, so
-it is not the otherwise-identical paired experiment this probe requires. No
-Wflow PASS row is claimed.
+### Independent submitted-model evidence: Wflow.jl
 
-LISFLOOD was also audited as an independent candidate and rejected
-rather than tuned to pass. Wiring the declared geometry into its native
-kinematic-wave channel produced, on gate seed 397273707, observed paired
-celerities of about 12.9, 43.7 and 63.1 m/s versus Manning expectations of
-about 0.66, 0.78 and 1.00 m/s. Refining LISFLOOD's channel routing sub-step
-from 3600 s to 300 s changed those values only to about 12.8, 43.4 and
-62.7 m/s. The mismatch is therefore not the probe's five-percent allowance
-or hourly timing quantisation. No LISFLOOD PASS row is claimed or archived.
+The first Wflow audit used its existing one-cell land/river/outlet
+schematisation and rainfall-derived runoff. It was deliberately rejected rather
+than tuned to pass: changing river geometry also changed the settled base
+discharge, so the short/long pair no longer isolated propagation. That failure
+identified a problem in the experiment interface, not a reason to widen the
+five-percent celerity allowance.
 
-The independent submitted-physical-model evidence required by
-`docs/writing-a-probe.md` remains the outstanding merge prerequisite. No
-unimplemented proposal is counted as that evidence. Accepted model proposal
-#132, mizuRoute, is scientifically relevant because it is a routing-only
-physical model with native hourly reach discharge and explicit kinematic-wave
-schemes, but it consumes lateral runoff rather than the rainfall forcing used
-by this paired experiment and its separate reach-routing infrastructure is
-still under review. #148 therefore does not depend on, claim a result from, or
-take ownership of that model contribution. A future submitted model counts
-only after it can run this experiment honestly and archive a passing row.
+The final evidence path uses interfaces that already exist on both sides of
+the benchmark contract:
+
+- HydroTuring's public `q_in` is a prescribed routing inflow.
+- Wflow v1.0.4 exposes
+  `river_water__external_inflow_volume_flow_rate` as a forcing of its native
+  river kinematic wave.
+- The adapter builds a two-cell river chain only when `q_in` is present.
+  The first cell is a fixed 100 m source cell and receives `q_in`; the second
+  cell is the tested 4 km or 20 km reach. The source cell is byte-identical
+  between variants, so its residence time is a common term removed by the
+  paired centroid difference.
+- `width_m`, `slope`, `manning_n` and `reach_length_m` are written to
+  Wflow's native river maps. The scored `dis` is Wflow's own downstream
+  `q_av`, not total catchment runoff and not a discharge reconstructed by
+  the criterion.
+
+No Wflow parameter is fitted to this probe and the criterion is unchanged.
+Wflow's kinematic wave uses its own `A = alpha Q^(3/5)` relation and a fixed
+wetted-perimeter approximation rather than the criterion's exact rectangular
+normal-depth inversion. Across the three deterministic gate geometries and
+all three hydraulic states, the celerity implied by that native relation differs
+from the criterion's exact rectangular `dQ/dA` by only -0.08% to +0.56%;
+the production allowance remains 5%.
+
+A clean GitHub Actions Docker run of adapter `1.0.4-ht.5` on all three gate
+seeds passed #148 without changing the threshold:
+
+```
+low = 0.704 m/s < medium = 0.927 m/s < high = 1.225 m/s
+```
+
+This is the independent submitted-physical-model evidence for the probe.
+The exact Saint-Venant reference and Wflow do not share the same numerical
+scheme or routing implementation; they meet only at the externally visible
+physics asserted by the criterion.
+
+LISFLOOD was also audited as an independent candidate and rejected rather than
+tuned to pass. Wiring the declared geometry into its current HydroTuring
+one/two-cell kinematic-wave channel produced, on gate seed 397273707, observed
+paired celerities of about 12.9, 43.7 and 63.1 m/s versus Manning expectations
+of about 0.66, 0.78 and 1.00 m/s. Refining its channel routing sub-step from
+3600 s to 300 s changed those values only to about 12.8, 43.4 and 62.7 m/s.
+No LISFLOOD PASS is claimed: a physical-model disagreement is evidence to
+diagnose, not permission to relax the probe until it disappears.
 
 ## Reproduction
 
