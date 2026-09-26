@@ -36,7 +36,7 @@ def _probe() -> ProbeSpec:
         citation="",
         requires_fluxes=("dis",),
         requires_states=(),
-        requires_forcing=("pr",),
+        requires_forcing=("q_in",),
         requires_static=(
             "width_m", "cross_section_shape", "slope", "manning_n",
             "reach_length_m",
@@ -111,6 +111,7 @@ def _synthetic_runs(celerities: tuple[float, float, float] | None = None) -> dic
         "pr": np.zeros(n),
         "tas": np.full(n, 15.0),
         "pet": np.zeros(n),
+        "q_in": np.zeros(n),
         **{column: np.zeros(n) for column in EVENT_COLUMNS.values()},
     })
 
@@ -124,9 +125,10 @@ def _synthetic_runs(celerities: tuple[float, float, float] | None = None) -> dic
         forcing.loc[pulse_start:pulse_start + 5, EVENT_COLUMNS[state]] = 1.0
         pulse_centres[state] = pulse_start + 3.0
 
-    # The forcing itself is irrelevant to these direct criterion fixtures
-    # except for the hidden event labels and short/long equality.
-    forcing["pr"] = base_by_row * 0.864
+    forcing["q_in"] = base_by_row
+    for state, q in zip(STATES, STATE_Q):
+        pulse_start = int(pulse_centres[state] - 3.0)
+        forcing.loc[pulse_start:pulse_start + 5, "q_in"] += 0.05 * q
 
     runs = {}
     for side, length in (("short", 4000.0), ("long", 20000.0)):
@@ -189,6 +191,7 @@ def _hayami_synthetic_runs() -> dict[str, RunResult]:
         "pr": np.zeros(n_rows),
         "tas": np.full(n_rows, 15.0),
         "pet": np.zeros(n_rows),
+        "q_in": np.zeros(n_rows),
         **{column: np.zeros(n_rows) for column in EVENT_COLUMNS.values()},
     })
 
@@ -201,7 +204,10 @@ def _hayami_synthetic_runs() -> dict[str, RunResult]:
         pulse_start = start + 24
         pulse_starts[state] = pulse_start
         forcing.loc[pulse_start:pulse_start + 5, EVENT_COLUMNS[state]] = 1.0
-    forcing["pr"] = base * 0.864
+    forcing["q_in"] = base
+    for state, q in zip(STATES, STATE_Q):
+        pulse_start = pulse_starts[state]
+        forcing.loc[pulse_start:pulse_start + 5, "q_in"] += 0.05 * q
 
     width = 75.0
     slope = 0.0012
@@ -346,6 +352,15 @@ def test_registered_probe_and_references_are_compatible():
 
 
 
+def test_probe_requires_prescribed_river_inflow_not_rainfall():
+    probe = registry.find_probe("momentum/wave-celerity-bounds")
+    assert probe.requires_forcing == ("q_in",)
+    case = build_case(probe, gate_seeds(probe.id, 1)[0], "short")
+    assert "q_in" in case.forcing
+    assert np.all(case.forcing["pr"].to_numpy(float) == 0.0)
+    assert np.all(case.forcing["pet"].to_numpy(float) == 0.0)
+
+
 def test_generator_pairs_change_only_reach_length():
     probe = registry.find_probe("momentum/wave-celerity-bounds")
     seed = gate_seeds(probe.id, 1)[0]
@@ -427,14 +442,20 @@ def test_generator_keeps_the_linearization_subcritical_and_small():
             marker = EVENT_COLUMNS[state]
             pulse_rows = scored[marker].to_numpy(float) > 0.0
             assert pulse_rows.sum() == 6
-            base_mm_day = q * 0.864
-            pulse_mm_day = scored.loc[pulse_rows, marker].to_numpy(float)
+            pulse_q = scored.loc[pulse_rows, marker].to_numpy(float)
             np.testing.assert_allclose(
-                pulse_mm_day / base_mm_day,
+                pulse_q / q,
                 0.05,
                 rtol=0.0,
                 atol=1.0e-12,
             )
+            np.testing.assert_allclose(
+                scored.loc[pulse_rows, "q_in"].to_numpy(float),
+                1.05 * q,
+                rtol=0.0,
+                atol=1.0e-12,
+            )
+            assert np.all(scored["pr"].to_numpy(float) == 0.0)
 
 
 def test_generator_stays_inside_wide_channel_allowance():
