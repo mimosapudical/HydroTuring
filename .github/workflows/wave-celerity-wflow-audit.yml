@@ -1,4 +1,4 @@
-name: wave-celerity-runtime-audit
+name: wave-celerity-reference-profile
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  runtime:
+  profile:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -21,7 +21,14 @@ jobs:
           cache: pip
       - name: Install
         run: pip install -e '.[dev]'
-      - name: Measure focused acceptance gate
+      - name: Profile one Saint-Venant gate seed
         run: |
-          /usr/bin/time -f 'WAVE_GATE_WALL=%e' \
-            ht gate --probe momentum/wave-celerity-bounds
+          mkdir -p /tmp/wave-ref
+          /usr/bin/time -f 'REF_ONE_SEED_WALL=%e' \
+            ht run --model reference_saint_venant \
+                   --probe momentum/wave-celerity-bounds \
+                   --seed 397273707 \
+                   --workdir /tmp/wave-ref \
+                   --markdown
+          echo '--- RUN JSON ---'
+          find /tmp/wave-ref -name run.json -print -exec cat {} \;
