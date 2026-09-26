@@ -143,6 +143,12 @@ Picking a denominator for `closure` and `regime_transfer`:
 | `sum_abs_rn` | energy budgets | required, net radiation crosses zero nightly |
 | `sum_inflow` | routing | not needed |
 
+`sum_inflow` reads the public forcing column `q_in`: prescribed river inflow
+in m3/s, positive into the routing control volume. A probe that relies on it
+must list `q_in` under `requires.forcing`, and an eligible model must actually
+consume it through `needs_forcing` or `uses_forcing`; see the /io contract in
+`AGENTS.md`.
+
 ### Labelled stretches
 
 `regime_transfer` scores parts of one record separately and compares them,
