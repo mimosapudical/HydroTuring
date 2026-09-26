@@ -88,7 +88,12 @@ on which the cancellation rests:
 
 A model/domain in which changing the declared reach length also changes the
 settled base flow has not answered the paired experiment. That is why such a
-configuration is not rescued by widening the celerity tolerance.
+configuration is not rescued by widening the celerity tolerance. The contract
+can verify that a model consumes `reach_length_m`, but it cannot prove where
+inside that model the value is used. If reach length is allowed to alter runoff
+generation itself, the paired estimate is a net length-dependent response and
+must not be interpreted as a pure channel celerity; the intended applicability
+is to models that use this field as reach-routing geometry.
 
 The physical comparison is also deliberately a kinematic-limit statement: a
 mild prismatic rectangular reach, positive slope and discharge, no adverse
