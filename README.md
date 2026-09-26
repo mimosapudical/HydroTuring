@@ -68,7 +68,7 @@ not.
 
 ## The probes
 
-Thirty-three: twenty-one under mass, seven under energy and five under momentum.
+Thirty-four: twenty-two under mass, seven under energy and five under momentum.
 Each was merged only after the acceptance gate saw it pass its declared
 exact reference and fail a purpose-built broken one on the named criterion.
 Four physical models, a bucket that conserves water exactly, two
@@ -78,7 +78,7 @@ the groundwater-exchange probe need outputs they do not report and are not
 scored for them; `mass/snowpack-mass-closure` scores only `sacsma_snow17`,
 the one physical model that reports `snm`. A probe that fails a
 physical model is examined before the model is; that is the first thing done
-with any probe pull request. Twelve of the thirty-three require no model output
+with any probe pull request. Twelve of the thirty-four require no model output
 beyond runoff. That output-only count includes `momentum/routing-lag-consistency`,
 which is eligible only when the model also declares that it consumes `pr` and
 the three geometry inputs `area_km2`, `main_channel_length_km` and
@@ -405,7 +405,7 @@ where that conversation happens, before and alongside the issues.
 
 ## Status
 
-Suite `0.1.0`, pre-release. Thirty-three probes, twenty-one mass, seven energy, five momentum, synthetic track only. More
+Suite `0.1.0`, pre-release. Thirty-four probes, twenty-two mass, seven energy, five momentum, synthetic track only. More
 energy and momentum probes, and the real-data track, are next. The harness runs paired cases and
 scores labelled regimes; spatial and temporal closure, counterfactual response
 and invariance are represented in the suite. The roadmap lists the remaining
