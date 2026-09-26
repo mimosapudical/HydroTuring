@@ -47,6 +47,123 @@ subcritical, and even have a Manning-consistent steady rating while still using
 the same transient speed at every discharge. #148 is designed to reject that
 specific construction.
 
+## Hydraulic theory behind the estimator
+
+This probe is a black-box system-identification experiment for the
+one-dimensional flood-wave problem, not another empirical lag rule.
+
+With no lateral inflow, continuity is
+
+```
+dA/dt + dQ/dx = 0.
+```
+
+In the kinematic limit the reach has an equilibrium rating `Q = Q(A)`. For a
+small perturbation `a` about a steady state `A0`,
+
+```
+A = A0 + a
+Q(A) = Q(A0) + (dQ/dA)|A0 a + O(a^2),
+```
+
+so the linearized continuity equation is
+
+```
+da/dt + c(A0) da/dx = 0,
+c(A0) = (dQ/dA)|A0.
+```
+
+Thus the Kleitz--Seddon speed `dQ/dA` is the characteristic speed of the
+small flood-wave perturbation in this controlled regime; it is not the mean
+water velocity and it is not the gross rainfall-to-runoff lag. Mishra & Singh
+(2001, https://doi.org/10.1080/02626660109492830) connect the Seddon formula to
+the linearized Saint-Venant solution. Ponce & Simons
+(1977, https://doi.org/10.1061/JYCEAJ.0004892) show that the full shallow-water
+problem contains distinct gravity, dynamic and kinematic wave bands, which is
+why this probe deliberately stays in the small, friction-dominated kinematic
+regime.
+
+For a wide rectangular Manning reach, `Q proportional to A^(5/3)`, hence
+
+```
+c = dQ/dA = (5/3) Q/A = (5/3) u.
+```
+
+The production criterion uses the exact rectangular hydraulic radius rather
+than this wide-channel approximation.
+
+### Why the response centroid is the measured clock
+
+Keeping the next-order pressure effect gives the linear convection--diffusion
+(or diffusion-wave) form
+
+```
+dq'/dt + c dq'/dx = D d2q'/dx2.
+```
+
+River-routing literature treats `c` and hydraulic diffusivity `D` as the two
+physical propagation parameters; the Hayami solution is the classical
+constant-parameter analytical case (Moussa 1996,
+https://doi.org/10.1002/(SICI)1099-1085(199609)10:9%3C1209::AID-HYP380%3E3.0.CO;2-2).
+A modern statement of the same diffusion-wave model gives
+`c = dQ/dA` and, in the usual low-inertia approximation,
+`D approximately Q/(2 B S)`
+(https://doi.org/10.1029/2023WR034692).
+
+For a reach of length `L`, the Hayami impulse kernel is
+
+```
+g_L(t) =
+  L / (2 sqrt(pi D t^3))
+  exp(-(L - c t)^2 / (4 D t)),    t > 0.
+```
+
+Its first two temporal moments are
+
+```
+E[T_L]   = L / c,
+Var[T_L] = 2 D L / c^3.
+```
+
+This gives the paired experiment a stronger interpretation than "subtract two
+lags". If the common runoff-generation/storage response is `f(t)`, the outlet
+response is the convolution `f * g_L`. Temporal cumulants add under
+convolution, so
+
+```
+centroid(out_L) = centroid(f) + L/c.
+```
+
+Therefore
+
+```
+centroid(out_long) - centroid(out_short)
+    = (L_long - L_short) / c,
+```
+
+and the unknown common upstream timing cancels. Diffusion can broaden and
+attenuate the hydrograph without moving this first-moment identity. This is why
+the probe measures a response centroid rather than a peak index. The second
+cumulant also gives a natural future diagnostic,
+
+```
+Var(out_long) - Var(out_short)
+    = 2 D (L_long - L_short) / c^3,
+```
+
+so the same paired design can in principle separate translation (`c`) from
+dispersion (`D`) without reading model internals. #148 keeps the verdict on
+celerity only.
+
+This interpretation also has an empirical analogue. Allen et al. (2018,
+https://doi.org/10.1029/2018GL077914) estimated river-wave celerity from paired
+upstream/downstream gauges by dividing reach distance by an observed hydrograph
+lag. Meyer et al. (2019, https://doi.org/10.1080/02626667.2018.1557336) found
+that celerity--discharge relations vary strongly across real rivers and can
+reverse after floodplain activation. That is exactly why #148 restricts itself
+to an in-bank prismatic reach instead of asserting monotonic celerity for
+arbitrary natural-river states.
+
 ## Experiment
 
 For each seed, the generator draws one mild prismatic rectangular reach
