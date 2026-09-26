@@ -296,10 +296,15 @@ relative allowance. Once it holds, the three celerity requirements are:
 3. `c_low < c_medium < c_high`.
 
 The five-percent physical allowance is fixed before gate evaluation. Proposal
-#148's feasibility audit found the existing 64-cell Rusanov reference biased
-low by about 9--13%, 128 cells by about 4--8%, and tested 256-cell cases by
-about 2--4%. The production transient path therefore uses 256 cells rather than
-widening the physical tolerance to cover coarse-grid diffusion.
+#148's feasibility audit found the original coarse Rusanov reference biased
+low, with the bias shrinking under spatial refinement. A second implementation
+audit exposed a subtler paired-design problem: giving both the 4 km and 20 km
+variants the same cell count makes the short reach five times finer in space,
+so reach length also changes numerical diffusion and CFL cost. The production
+transient reference therefore fixes the physical mesh scale instead, using an
+approximately 80 m cell size (50 cells over 4 km and 250 over 20 km). The
+counterfactual now changes reach length without changing numerical resolution;
+the five-percent physical tolerance is not widened to cover discretization.
 
 The production generator keeps the synthetic section deliberately wide
 (60--90 m for 8--32 m3/s) and uses a 4 km / 20 km pair. Because the reported
@@ -321,8 +326,9 @@ resolved at the one-hour output step even at high flow.
 
 `reference_saint_venant` is the CI must-pass model. Its daily steady path is
 unchanged; for sub-daily forcing it advances the same continuity and momentum
-equations continuously through each output interval using a 256-cell grid.
-The criterion does not call the solver's fluxes or internal wave speeds.
+equations continuously through each output interval on the common approximately
+80 m mesh scale. The criterion does not call the solver's fluxes or internal
+wave speeds.
 
 `reference_fixed_celerity` is the deliberately broken control. It transports
 the prescribed discharge downstream at exactly 1 m/s for every hydraulic
