@@ -227,6 +227,10 @@ def _forcing_step_seconds(forcing: list[dict]) -> float:
 
 
 def _inflow_m3s(item: dict, area_km2: float) -> float:
+    # Routing probes can prescribe the river inflow directly. Keep the
+    # rainfall-derived path for the existing steady-uniform-flow probe.
+    if "q_in" in item and str(item["q_in"]).strip() != "":
+        return float(item["q_in"])
     effective_mm_day = max(float(item["pr"]) - float(item["pet"]), 0.0)
     return effective_mm_day * 1.0e-3 * area_km2 * 1.0e6 / SECONDS_PER_DAY
 
