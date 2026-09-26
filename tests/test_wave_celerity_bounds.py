@@ -160,6 +160,104 @@ def _synthetic_runs(celerities: tuple[float, float, float] | None = None) -> dic
     return runs
 
 
+
+def _hayami_kernel(hours: np.ndarray, length_m: float, celerity: float, diffusivity: float) -> np.ndarray:
+    """Discrete Hayami impulse response for a constant-parameter diffusion wave."""
+    seconds = np.asarray(hours, dtype=float) * 3600.0
+    kernel = np.zeros_like(seconds)
+    positive = seconds > 0.0
+    t = seconds[positive]
+    kernel[positive] = (
+        length_m
+        / (2.0 * np.sqrt(np.pi * diffusivity * t**3))
+        * np.exp(-((length_m - celerity * t) ** 2) / (4.0 * diffusivity * t))
+    )
+    total = float(kernel.sum())
+    assert total > 0.0
+    return kernel / total
+
+
+def _hayami_synthetic_runs() -> dict[str, RunResult]:
+    """Pair reaches with the right celerity but substantial diffusive broadening."""
+    probe = _probe()
+    spin = 48
+    block = 96
+    n_rows = spin + 3 * block
+    time = pd.date_range("2001-01-01", periods=n_rows, freq="h")
+    forcing = pd.DataFrame({
+        "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "pr": np.zeros(n_rows),
+        "tas": np.full(n_rows, 15.0),
+        "pet": np.zeros(n_rows),
+        **{column: np.zeros(n_rows) for column in EVENT_COLUMNS.values()},
+    })
+
+    base = np.full(n_rows, STATE_Q[0], dtype=float)
+    pulse_starts = {}
+    for i, (state, q) in enumerate(zip(STATES, STATE_Q)):
+        start = spin + i * block
+        stop = start + block
+        base[start:stop] = q
+        pulse_start = start + 24
+        pulse_starts[state] = pulse_start
+        forcing.loc[pulse_start:pulse_start + 5, EVENT_COLUMNS[state]] = 1.0
+    forcing["pr"] = base * 0.864
+
+    width = 75.0
+    slope = 0.0012
+    manning_n = 0.033
+    runs = {}
+    for side, length in (("short", 4000.0), ("long", 20000.0)):
+        discharge = base.copy()
+        for state, q in zip(STATES, STATE_Q):
+            celerity = _c_kin(q, width=width, slope=slope, n=manning_n)
+            # Five times the low-inertia Hayami value Q/(2 B S) makes the
+            # hydrograph visibly broader while leaving the first moment at L/c.
+            diffusivity = 5.0 * q / (2.0 * width * slope)
+            kernel = _hayami_kernel(
+                np.arange(60, dtype=float) + 0.5,
+                length,
+                celerity,
+                diffusivity,
+            )
+            routed_pulse = np.convolve(np.ones(6, dtype=float), kernel)
+            start = pulse_starts[state]
+            stop = min(start + len(routed_pulse), n_rows)
+            discharge[start:stop] += 0.05 * q * routed_pulse[:stop - start]
+
+        case = Case(
+            probe_id=f"{probe.id}@{side}",
+            seed=1,
+            forcing=forcing.copy(),
+            static={
+                "area_km2": 100.0,
+                "width_m": width,
+                "cross_section_shape": "rectangular",
+                "bed_elevation_m": 50.0,
+                "slope": slope,
+                "manning_n": manning_n,
+                "reach_length_m": length,
+            },
+            spinup_steps=spin,
+            timestep="PT1H",
+        )
+        table = pd.DataFrame({"time": forcing["time"], "dis": discharge})
+        runs[side] = RunResult(case, table, {"status": "ok"}, 0.0)
+    return runs
+
+
+def test_centroid_pair_recovers_state_dependent_celerity_under_hayami_diffusion():
+    result = get("wave_celerity_bounds")(
+        _hayami_synthetic_runs(),
+        _probe(),
+        _params(),
+    )
+    assert result.passed, result.message
+    for state in STATES:
+        diag = result.diagnostics["states"][state]
+        assert abs(diag["relative_residual"]) < 0.05
+
+
 def test_criterion_is_registered_as_paired():
     assert is_paired("wave_celerity_bounds")
 
