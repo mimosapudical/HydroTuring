@@ -36,7 +36,7 @@ def _probe() -> ProbeSpec:
         citation="",
         requires_fluxes=("dis",),
         requires_states=(),
-        requires_forcing=("pr",),
+        requires_forcing=("q_in",),
         requires_static=(
             "width_m", "cross_section_shape", "slope", "manning_n",
             "reach_length_m",
@@ -121,12 +121,12 @@ def _synthetic_runs(celerities: tuple[float, float, float] | None = None) -> dic
         stop = start + block
         base_by_row[start:stop] = q
         pulse_start = start + 24
-        forcing.loc[pulse_start:pulse_start + 5, EVENT_COLUMNS[state]] = 1.0
+        forcing.loc[pulse_start:pulse_start + 5, EVENT_COLUMNS[state]] = 0.05 * q
         pulse_centres[state] = pulse_start + 3.0
 
     # The forcing itself is irrelevant to these direct criterion fixtures
     # except for the hidden event labels and short/long equality.
-    forcing["pr"] = base_by_row * 0.864
+    forcing["q_in"] = base_by_row.copy()
 
     runs = {}
     for side, length in (("short", 4000.0), ("long", 20000.0)):
@@ -200,8 +200,9 @@ def _hayami_synthetic_runs() -> dict[str, RunResult]:
         base[start:stop] = q
         pulse_start = start + 24
         pulse_starts[state] = pulse_start
-        forcing.loc[pulse_start:pulse_start + 5, EVENT_COLUMNS[state]] = 1.0
-    forcing["pr"] = base * 0.864
+        forcing.loc[pulse_start:pulse_start + 5, EVENT_COLUMNS[state]] = 0.05 * q
+        base[pulse_start:pulse_start + 6] += 0.05 * q
+    forcing["q_in"] = base.copy()
 
     width = 75.0
     slope = 0.0012
@@ -338,6 +339,28 @@ def test_non_rectangular_geometry_is_rejected():
         get("wave_celerity_bounds")(runs, _probe(), _params())
 
 
+def test_probe_uses_direct_river_inflow_contract():
+    probe = registry.find_probe("momentum/wave-celerity-bounds")
+    assert probe.requires_forcing == ("q_in",)
+    seed = gate_seeds(probe.id, 1)[0]
+    short = build_case(probe, seed, "short")
+    long = build_case(probe, seed, "long")
+    assert np.all(short.forcing["pr"].to_numpy(float) == 0.0)
+    pd.testing.assert_series_equal(short.forcing["q_in"], long.forcing["q_in"])
+    assert set(short.forcing["q_in"].unique()) >= set(STATE_Q)
+
+
+def test_wave_probe_declared_inputs_are_real_model_opt_ins():
+    probe = registry.find_probe("momentum/wave-celerity-bounds")
+    case = build_case(probe, gate_seeds(probe.id, 1)[0], "short")
+    for name in ("reference_saint_venant", "reference_fixed_celerity", "wflow_sbm"):
+        model = registry.find_model(name)
+        assert "q_in" in model.uses_forcing
+        for key in ("width_m", "cross_section_shape", "slope", "manning_n", "reach_length_m"):
+            assert key in model.needs_static + model.uses_static
+        assert compatibility_issues(model, probe, case) == []
+
+
 def test_registered_probe_and_references_are_compatible():
     probe = registry.find_probe("momentum/wave-celerity-bounds")
     case = build_case(probe, gate_seeds(probe.id, 1)[0], "short")
@@ -427,11 +450,16 @@ def test_generator_keeps_the_linearization_subcritical_and_small():
             marker = EVENT_COLUMNS[state]
             pulse_rows = scored[marker].to_numpy(float) > 0.0
             assert pulse_rows.sum() == 6
-            base_mm_day = q * 0.864
-            pulse_mm_day = scored.loc[pulse_rows, marker].to_numpy(float)
+            pulse_q = scored.loc[pulse_rows, marker].to_numpy(float)
             np.testing.assert_allclose(
-                pulse_mm_day / base_mm_day,
+                pulse_q / q,
                 0.05,
+                rtol=0.0,
+                atol=1.0e-12,
+            )
+            np.testing.assert_allclose(
+                scored.loc[pulse_rows, "q_in"].to_numpy(float),
+                1.05 * q,
                 rtol=0.0,
                 atol=1.0e-12,
             )
