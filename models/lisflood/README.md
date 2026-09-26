@@ -135,10 +135,17 @@ When a case supplies the complete explicit routing tuple
 `cross_section_shape="rectangular"`), the adapter maps those values onto
 LISFLOOD's existing channel kinematic-wave inputs: `ChanLength`,
 `ChanBottomWidth`, `ChanGrad`, `ChanMan`, `ChanDepthThreshold`, and
-the rectangular side-slope convention. The override is all-or-nothing: a
-partial tuple is rejected. Cases without any of these fields retain the
-historical test-catchment geometry above, so this wiring does not silently
-change older probe cases.
+the rectangular side-slope convention. For this explicit reach mode only,
+the historical one-cell pit becomes a two-cell channel chain: the first
+25 km2 cell is the contributing catchment, the second is a dry downstream
+routing cell, and each carries half of `reach_length_m`. The downstream
+cell receives no precipitation or PET, so the reported outlet discharge is
+the native routed response of the upstream catchment. The case must declare
+`area_km2: 25`, matching the native contributing cell area; this keeps
+`dis` equal to the actual LISFLOOD outlet m3/s rather than a rescaled value.
+The override is all-or-nothing: a partial tuple is rejected. Cases without
+any of these fields retain the historical one-cell test-catchment geometry,
+so older probe cases are unchanged.
 
 
 "Test catchment" is `tests/data/LF_ETRS89_UseCase` at the pinned commit,
