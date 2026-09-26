@@ -74,6 +74,29 @@ before the next state transition, so the following plateau cannot pull the
 previous pulse centroid downstream. The generated record is hourly so timing
 quantisation is smaller than the short/long travel-time difference.
 
+## Scope and identification assumptions
+
+The paired estimator is intentionally narrower than a generic flood-wave test.
+Its interpretation is valid only when changing `reach_length_m` changes the
+propagation distance without changing the hydraulic experiment itself. The
+criterion therefore enforces, rather than merely documents, the two conditions
+on which the cancellation rests:
+
+- short and long runs carry byte-identical forcing and identical static
+  attributes except `reach_length_m`;
+- their pre-pulse base discharges agree within one percent.
+
+A model/domain in which changing the declared reach length also changes the
+settled base flow has not answered the paired experiment. That is why such a
+configuration is not rescued by widening the celerity tolerance.
+
+The physical comparison is also deliberately a kinematic-limit statement: a
+mild prismatic rectangular reach, positive slope and discharge, no adverse
+downstream boundary or backwater, and a small perturbation about a settled
+state. Passing does not claim that `c = dQ/dA` describes tidal, strongly
+backwatered, rapidly varied or supercritical flow. Those regimes require
+different probes and boundary information.
+
 ## Independent expectation
 
 For a rectangular section,
