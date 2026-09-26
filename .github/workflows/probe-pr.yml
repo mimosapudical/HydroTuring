@@ -165,3 +165,34 @@ jobs:
           print("BASE_DIAGNOSTICS_END")
           PY
           exit 0
+
+
+  wave_celerity_evidence:
+    # TEMPORARY FOR FORK CI ONLY. Removed after Round 2 evidence is collected.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install
+        run: pip install -e '.[dev]'
+
+      - name: Run LISFLOOD on wave-celerity gate seeds
+        run: |
+          set +e
+          rm -f /tmp/wave.csv
+          ht run --model lisflood                  --probe momentum/wave-celerity-bounds                  --gate-seeds                  --csv /tmp/wave.csv                  > /tmp/lisflood-wave-report.txt 2>&1
+          rc=$?
+          echo "LISFLOOD_RC=$rc"
+          echo "LISFLOOD_REPORT_BEGIN"
+          cat /tmp/lisflood-wave-report.txt
+          echo "LISFLOOD_REPORT_END"
+          echo "LISFLOOD_CSV_BEGIN"
+          cat /tmp/wave.csv || true
+          echo "LISFLOOD_CSV_END"
+          exit "$rc"
