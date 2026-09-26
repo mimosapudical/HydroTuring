@@ -18,6 +18,7 @@ emits:
   states: []
   diagnostics: [stage]
 needs_forcing: [pr, tas, pet]
+uses_forcing: [q_in]
 needs_static: [area_km2, width_m, cross_section_shape, bed_elevation_m, slope, manning_n, reach_length_m]
 supports:
   perturbation: true
