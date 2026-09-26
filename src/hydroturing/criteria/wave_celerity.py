@@ -33,6 +33,11 @@ class _Measurement:
     long_centroid_h: float
     short_variance_h2: float
     long_variance_h2: float
+    prescribed_base_m3s: float
+    short_base_m3s: float
+    long_base_m3s: float
+    short_base_variation: float
+    long_base_variation: float
     diffusivity_obs_m2_s: float | None
 
 
@@ -97,7 +102,7 @@ def _centroid(
     params: dict,
     variant: str,
     event_column: str,
-) -> tuple[float, float, float]:
+) -> tuple[float, float, float, float, float]:
     window = make_window(run, probe)
     if "dis" not in window.table:
         raise _ResponseFailure(variant, f"variant '{variant}' does not report dis")
@@ -132,7 +137,58 @@ def _centroid(
     baseline_steps = max(2, int(round(baseline_hours / (window.dt_days * 24.0))))
     if first < baseline_steps:
         raise ValueError("wave-celerity pulse has too little pre-event baseline")
-    base = float(np.mean(discharge[first - baseline_steps:first]))
+    base_slice = discharge[first - baseline_steps:first]
+    base = float(np.mean(base_slice))
+
+    # q_in is the externally prescribed hydraulic operating point.  The
+    # theory target must not be chosen by the model under test: first verify
+    # that the routed steady discharge actually represents that prescribed
+    # state, then evaluate dQ/dA at q_in rather than at a model-selected Q.
+    if "q_in" not in window.forcing:
+        raise ValueError("wave celerity needs prescribed forcing column 'q_in'")
+    inflow = pd.to_numeric(window.forcing["q_in"], errors="coerce").to_numpy(float)
+    prescribed_slice = inflow[first - baseline_steps:first]
+    if np.any(~np.isfinite(prescribed_slice)):
+        raise ValueError("wave-celerity prescribed q_in baseline is non-finite")
+    prescribed_base = float(np.mean(prescribed_slice))
+    if not np.isfinite(prescribed_base) or prescribed_base <= 0.0:
+        raise ValueError("wave-celerity prescribed q_in baseline must be positive")
+    input_span = float(np.max(np.abs(prescribed_slice - prescribed_base)))
+    if input_span > 1.0e-10 * max(1.0, abs(prescribed_base)):
+        raise ValueError("wave-celerity prescribed q_in must be steady before the pulse")
+
+    base_tolerance = float(params.get("base_flow_relative_tolerance", 0.01))
+    if not np.isfinite(base_tolerance) or base_tolerance < 0.0:
+        raise ValueError("base_flow_relative_tolerance must be finite and non-negative")
+    base_error = abs(base - prescribed_base) / prescribed_base
+    base_variation = float(np.max(np.abs(base_slice - base))) / prescribed_base
+    if base_error > base_tolerance + 1.0e-12:
+        raise _ResponseFailure(
+            variant,
+            f"variant '{variant}' settled base discharge {base:.6g} m3/s "
+            f"does not match prescribed q_in {prescribed_base:.6g} m3/s "
+            f"within {100*base_tolerance:.1f}%",
+            {
+                "baseline_discharge_m3s": base,
+                "prescribed_base_inflow_m3s": prescribed_base,
+                "base_relative_error": base_error,
+                "base_flow_relative_tolerance": base_tolerance,
+            },
+        )
+    if base_variation > base_tolerance + 1.0e-12:
+        raise _ResponseFailure(
+            variant,
+            f"variant '{variant}' is not settled before the pulse "
+            f"(baseline variation {100*base_variation:.2f}% of q_in; "
+            f"limit {100*base_tolerance:.1f}%)",
+            {
+                "baseline_discharge_m3s": base,
+                "prescribed_base_inflow_m3s": prescribed_base,
+                "base_relative_variation": base_variation,
+                "base_flow_relative_tolerance": base_tolerance,
+            },
+        )
+
     response_hours = float(params.get("response_hours", 72.0))
     if not np.isfinite(response_hours) or response_hours <= 0:
         raise ValueError("wave-celerity response_hours must be finite and positive")
@@ -171,7 +227,7 @@ def _centroid(
     centres_h = (np.arange(len(response), dtype=float) + 0.5) * window.dt_days * 24.0
     centroid_h = float(np.dot(centres_h, response) / total)
     variance_h2 = float(np.dot((centres_h - centroid_h) ** 2, response) / total)
-    return centroid_h, variance_h2, base
+    return centroid_h, variance_h2, base, prescribed_base, base_variation
 
 
 def _pair(runs: dict[str, RunResult], probe: ProbeSpec, params: dict, state: str) -> _Measurement:
@@ -200,27 +256,44 @@ def _pair(runs: dict[str, RunResult], probe: ProbeSpec, params: dict, state: str
     if not isinstance(event_columns, dict) or state not in event_columns:
         raise ValueError(f"wave celerity needs an event column for state '{state}'")
     event_column = str(event_columns[state])
-    t_short, var_short_h2, q_short = _centroid(
+    t_short, var_short_h2, q_short, q_in_short, base_var_short = _centroid(
         short, probe, params, short_name, event_column
     )
-    t_long, var_long_h2, q_long = _centroid(
+    t_long, var_long_h2, q_long, q_in_long, base_var_long = _centroid(
         long, probe, params, long_name, event_column
     )
-    if not np.isclose(q_short, q_long, rtol=0.01, atol=1.0e-9):
-        raise ValueError(f"{state} short/long base discharges disagree")
+    if not np.isclose(q_in_short, q_in_long, rtol=0.0, atol=1.0e-10):
+        raise ValueError(f"{state} short/long prescribed q_in baselines disagree")
+    base_tolerance = float(params.get("base_flow_relative_tolerance", 0.01))
+    if not np.isclose(q_short, q_long, rtol=base_tolerance, atol=1.0e-9):
+        raise _ResponseFailure(
+            "pair",
+            f"{state} short/long settled base discharges disagree",
+            {
+                "state": state,
+                "short_base_discharge_m3s": q_short,
+                "long_base_discharge_m3s": q_long,
+                "prescribed_base_inflow_m3s": q_in_short,
+            },
+        )
     dt_hours = t_long - t_short
     timing_floor = float(params.get("timing_floor_hours", 0.05))
     if not np.isfinite(dt_hours) or dt_hours <= timing_floor:
         return _Measurement(
             state,
             -1.0,
-            _kinematic_celerity(q_short, short.case.static, short_name),
+            _kinematic_celerity(q_in_short, short.case.static, short_name),
             float("inf"),
             dt_hours,
             t_short,
             t_long,
             var_short_h2,
             var_long_h2,
+            q_in_short,
+            q_short,
+            q_long,
+            base_var_short,
+            base_var_long,
             None,
         )
 
@@ -228,7 +301,7 @@ def _pair(runs: dict[str, RunResult], probe: ProbeSpec, params: dict, state: str
     # distance is the full difference in reach lengths.
     dx = length_l - length_s
     c_obs = dx / (dt_hours * 3600.0)
-    c_kin = _kinematic_celerity(q_short, short.case.static, short_name)
+    c_kin = _kinematic_celerity(q_in_short, short.case.static, short_name)
     residual = (c_obs - c_kin) / c_kin
 
     # For the constant-parameter diffusion-wave (Hayami) kernel,
@@ -251,6 +324,11 @@ def _pair(runs: dict[str, RunResult], probe: ProbeSpec, params: dict, state: str
         t_long,
         var_short_h2,
         var_long_h2,
+        q_in_short,
+        q_short,
+        q_long,
+        base_var_short,
+        base_var_long,
         diffusivity_obs,
     )
 
@@ -315,6 +393,11 @@ def wave_celerity_bounds(
             "delta_response_variance_h2": (
                 item.long_variance_h2 - item.short_variance_h2
             ),
+            "prescribed_base_inflow_m3s": item.prescribed_base_m3s,
+            "short_base_discharge_m3s": item.short_base_m3s,
+            "long_base_discharge_m3s": item.long_base_m3s,
+            "short_base_relative_variation": item.short_base_variation,
+            "long_base_relative_variation": item.long_base_variation,
             "paired_diffusivity_m2_s": item.diffusivity_obs_m2_s,
         }
 
@@ -344,6 +427,9 @@ def wave_celerity_bounds(
         message=message,
         diagnostics={
             "relative_tolerance": tolerance,
+            "base_flow_relative_tolerance": float(
+                params.get("base_flow_relative_tolerance", 0.01)
+            ),
             "ordering_margin_fraction": separation,
             "states": diagnostics,
         },

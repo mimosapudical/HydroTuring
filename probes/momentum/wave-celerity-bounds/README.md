@@ -241,7 +241,9 @@ on which the cancellation rests:
 
 - short and long runs carry byte-identical forcing and identical static
   attributes except `reach_length_m`;
-- their pre-pulse base discharges agree within one percent.
+- over the 12-hour pre-pulse plateau, each outlet discharge agrees with the
+  prescribed `q_in` operating point within one percent, varies by at most
+  one percent of that inflow, and the two variants agree with each other.
 
 A model/domain in which changing the declared reach length also changes the
 settled base flow has not answered the paired experiment. That is why such a
@@ -277,11 +279,17 @@ c_kin = dQ/dA
       = Q [5/(3A) - 4/(3 b P)].
 ```
 
-The criterion obtains the base discharge from the model output, inverts the
-monotone Manning relation for depth, and evaluates this derivative. It does not
-reuse a propagation time from the reference model.
+The hydraulic operating point is the externally prescribed `q_in`, not a
+discharge chosen by the model under test. Before evaluating the theory, the
+criterion requires the model's 12-hour pre-pulse outlet plateau to match that
+`q_in` within one percent and to vary by no more than one percent of it. It
+then inverts the monotone Manning relation at the prescribed inflow and
+evaluates the derivative above. A model therefore cannot alter its steady
+discharge and make the theory target move with the alteration, and no
+propagation time is reused from the reference model.
 
-The three requirements are:
+The settled-flow check above is an identification precondition, with a one-percent
+relative allowance. Once it holds, the three celerity requirements are:
 
 1. `c_obs > 0`;
 2. `abs(c_obs - c_kin) / c_kin <= 0.05`;

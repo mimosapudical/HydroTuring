@@ -48,6 +48,7 @@ criteria:
         high: _pulse_high
       response_hours: 72
       relative_tolerance: 0.05
+      base_flow_relative_tolerance: 0.01
       baseline_hours: 12
       min_response_fraction: 0.0001
       timing_floor_hours: 0.05
@@ -63,5 +64,6 @@ provenance: >
   Synthetic hourly prescribed river inflow and seeded rectangular reach
   geometry generated at run time. The positive reference advances the one-dimensional Saint-Venant
   equations with the repository's finite-volume Rusanov solver; the criterion
-  independently derives dQ/dA from the declared Manning geometry. Implements
+  verifies the settled outlet flow against prescribed q_in, then independently
+  derives dQ/dA from that prescribed operating point and the declared Manning geometry. Implements
   accepted proposal #148.

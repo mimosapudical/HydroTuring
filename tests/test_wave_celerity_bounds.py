@@ -63,6 +63,7 @@ def _params(**overrides) -> dict:
         "states": list(STATES),
         "event_columns": dict(EVENT_COLUMNS),
         "relative_tolerance": 0.05,
+        "base_flow_relative_tolerance": 0.01,
         "baseline_hours": 12,
         "response_hours": 72,
         "timing_floor_hours": 0.05,
@@ -195,7 +196,6 @@ def _hayami_synthetic_runs() -> dict[str, RunResult]:
     })
 
     base = np.full(n_rows, STATE_Q[0], dtype=float)
-    q_in = base.copy()
     pulse_starts = {}
     for i, (state, q) in enumerate(zip(STATES, STATE_Q)):
         start = spin + i * block
@@ -204,6 +204,9 @@ def _hayami_synthetic_runs() -> dict[str, RunResult]:
         pulse_start = start + 24
         pulse_starts[state] = pulse_start
         forcing.loc[pulse_start:pulse_start + 5, EVENT_COLUMNS[state]] = 0.05 * q
+    q_in = base.copy()
+    for state, q in zip(STATES, STATE_Q):
+        pulse_start = pulse_starts[state]
         q_in[pulse_start:pulse_start + 6] += 0.05 * q
     forcing["q_in"] = q_in
 
@@ -413,8 +416,27 @@ def test_pair_rejects_a_shifted_base_state():
     table = long.table.copy()
     table["dis"] = table["dis"] * 1.02
     runs["long"] = RunResult(long.case, table, long.meta, long.wall_seconds)
-    with pytest.raises(ValueError, match="base discharges disagree"):
-        get("wave_celerity_bounds")(runs, _probe(), _params())
+    result = get("wave_celerity_bounds")(runs, _probe(), _params())
+    assert not result.passed
+    assert "does not match prescribed q_in" in result.message
+
+
+def test_model_cannot_choose_its_own_base_q_to_make_theory_self_consistent():
+    # Under the old implementation, scaling the model output to half the
+    # prescribed steady flow and routing at c_kin(Q/2) could make both the
+    # measured speed and the theory target agree, because c_kin was evaluated
+    # at the model's own base discharge.  The operating point is now q_in, so
+    # that self-consistent but non-conservative construction must fail.
+    wrong_c = tuple(_c_kin(0.5 * q) for q in STATE_Q)
+    runs = _synthetic_runs(wrong_c)
+    for side in ("short", "long"):
+        run = runs[side]
+        table = run.table.copy()
+        table["dis"] = 0.5 * table["dis"]
+        runs[side] = RunResult(run.case, table, run.meta, run.wall_seconds)
+    result = get("wave_celerity_bounds")(runs, _probe(), _params())
+    assert not result.passed
+    assert "prescribed q_in" in result.message
 
 
 def test_generator_has_three_isolated_pulses_and_response_tail():

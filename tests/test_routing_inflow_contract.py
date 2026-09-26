@@ -30,6 +30,7 @@ def _probe() -> ProbeSpec:
         generator="generate.py",
         n_seeds=1,
         timestep="PT1H",
+        period_years=0.0,
         period_days=3.0 / 24.0,
         spinup_days=1,
         max_output_mb=1.0,
