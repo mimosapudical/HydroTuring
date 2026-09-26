@@ -292,10 +292,13 @@ bound, holding the water back does the reverse. It carries conditions that have
 to be written down with it — `closure` sums every reported store, so a
 full-catchment model needs the control volume set up explicitly; the denominator
 is zero on a truly inflow-free window, which `closure` reports as degenerate, so
-this is a prescribed-inflow test rather than the recession test #71 proposed; no
-generator produces `q_in` and no manifest declares it, so every model is N/A
-today; and an adapter that reports `channel` as cumulative inflow minus outflow
-closes by construction.
+this is a prescribed-inflow test rather than the recession test #71 proposed.
+`momentum/wave-celerity-bounds` now exercises the public `q_in` contract with
+routing-capable references and Wflow, so the input plumbing no longer has to be
+invented here; what remains open is a control-volume mass probe that scores
+`q_in`, outflow and channel storage together. An adapter that reports
+`channel` as cumulative inflow minus outflow would still close that identity
+by construction, so the anti-cheat design remains part of the open problem.
 
 ### `momentum/stage-discharge-monotonic` &middot; **merged**
 Steady-flow rating must be monotonic. Where a loop rating appears, it must be
