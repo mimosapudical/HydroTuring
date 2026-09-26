@@ -11,12 +11,15 @@ authors:
 
 description: >
   Low, medium and high steady hydraulic states are each perturbed by the same
-  small pulse in a short and a long rectangular reach. The short/long centroid
-  delay isolates propagation over the additional outlet travel distance. Observed
-  celerity must be positive, remain within five percent of the independently
-  computed Manning/kinematic dQ/dA expectation, and increase with hydraulic
-  state. A fixed positive celerity can pass gross routing-lag tests but fails
-  this state-response requirement.
+  small pulse in a short and a long rectangular reach. Because forcing and all
+  static attributes except reach length are paired, the short/long centroid
+  difference cancels the common runoff-generation and storage clock and
+  isolates propagation over the additional outlet travel distance from dis
+  alone. Observed celerity must be positive, remain within five percent of the
+  independently computed Manning/kinematic dQ/dA expectation, and increase
+  with hydraulic state. A fixed positive celerity can conserve mass, remain
+  causal and pass gross routing-lag tests while still failing this
+  state-response requirement.
 
 citation: https://doi.org/10.5194/hess-24-2655-2020
 
