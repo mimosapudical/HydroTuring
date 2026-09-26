@@ -124,9 +124,11 @@ def _synthetic_runs(celerities: tuple[float, float, float] | None = None) -> dic
         forcing.loc[pulse_start:pulse_start + 5, EVENT_COLUMNS[state]] = 0.05 * q
         pulse_centres[state] = pulse_start + 3.0
 
-    # The forcing itself is irrelevant to these direct criterion fixtures
-    # except for the hidden event labels and short/long equality.
-    forcing["q_in"] = base_by_row.copy()
+    q_in = base_by_row.copy()
+    for state, q in zip(STATES, STATE_Q):
+        start = int(round(pulse_centres[state] - 3.0))
+        q_in[start:start + 6] += 0.05 * q
+    forcing["q_in"] = q_in
 
     runs = {}
     for side, length in (("short", 4000.0), ("long", 20000.0)):
@@ -193,6 +195,7 @@ def _hayami_synthetic_runs() -> dict[str, RunResult]:
     })
 
     base = np.full(n_rows, STATE_Q[0], dtype=float)
+    q_in = base.copy()
     pulse_starts = {}
     for i, (state, q) in enumerate(zip(STATES, STATE_Q)):
         start = spin + i * block
@@ -201,8 +204,8 @@ def _hayami_synthetic_runs() -> dict[str, RunResult]:
         pulse_start = start + 24
         pulse_starts[state] = pulse_start
         forcing.loc[pulse_start:pulse_start + 5, EVENT_COLUMNS[state]] = 0.05 * q
-        base[pulse_start:pulse_start + 6] += 0.05 * q
-    forcing["q_in"] = base.copy()
+        q_in[pulse_start:pulse_start + 6] += 0.05 * q
+    forcing["q_in"] = q_in
 
     width = 75.0
     slope = 0.0012
