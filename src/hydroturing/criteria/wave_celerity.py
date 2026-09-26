@@ -31,6 +31,9 @@ class _Measurement:
     dt_hours: float
     short_centroid_h: float
     long_centroid_h: float
+    short_variance_h2: float
+    long_variance_h2: float
+    diffusivity_obs_m2_s: float | None
 
 
 def _positive(static: dict[str, Any], key: str, variant: str) -> float:
@@ -94,7 +97,7 @@ def _centroid(
     params: dict,
     variant: str,
     event_column: str,
-) -> tuple[float, float]:
+) -> tuple[float, float, float]:
     window = make_window(run, probe)
     if "dis" not in window.table:
         raise _ResponseFailure(variant, f"variant '{variant}' does not report dis")
@@ -167,7 +170,8 @@ def _centroid(
 
     centres_h = (np.arange(len(response), dtype=float) + 0.5) * window.dt_days * 24.0
     centroid_h = float(np.dot(centres_h, response) / total)
-    return centroid_h, base
+    variance_h2 = float(np.dot((centres_h - centroid_h) ** 2, response) / total)
+    return centroid_h, variance_h2, base
 
 
 def _pair(runs: dict[str, RunResult], probe: ProbeSpec, params: dict, state: str) -> _Measurement:
@@ -196,15 +200,29 @@ def _pair(runs: dict[str, RunResult], probe: ProbeSpec, params: dict, state: str
     if not isinstance(event_columns, dict) or state not in event_columns:
         raise ValueError(f"wave celerity needs an event column for state '{state}'")
     event_column = str(event_columns[state])
-    t_short, q_short = _centroid(short, probe, params, short_name, event_column)
-    t_long, q_long = _centroid(long, probe, params, long_name, event_column)
+    t_short, var_short_h2, q_short = _centroid(
+        short, probe, params, short_name, event_column
+    )
+    t_long, var_long_h2, q_long = _centroid(
+        long, probe, params, long_name, event_column
+    )
     if not np.isclose(q_short, q_long, rtol=0.01, atol=1.0e-9):
         raise ValueError(f"{state} short/long base discharges disagree")
     dt_hours = t_long - t_short
     timing_floor = float(params.get("timing_floor_hours", 0.05))
     if not np.isfinite(dt_hours) or dt_hours <= timing_floor:
-        return _Measurement(state, -1.0, _kinematic_celerity(q_short, short.case.static, short_name),
-                            float("inf"), dt_hours, t_short, t_long)
+        return _Measurement(
+            state,
+            -1.0,
+            _kinematic_celerity(q_short, short.case.static, short_name),
+            float("inf"),
+            dt_hours,
+            t_short,
+            t_long,
+            var_short_h2,
+            var_long_h2,
+            None,
+        )
 
     # Both model outputs are read at the outlet, so the paired propagation
     # distance is the full difference in reach lengths.
@@ -212,8 +230,29 @@ def _pair(runs: dict[str, RunResult], probe: ProbeSpec, params: dict, state: str
     c_obs = dx / (dt_hours * 3600.0)
     c_kin = _kinematic_celerity(q_short, short.case.static, short_name)
     residual = (c_obs - c_kin) / c_kin
-    return _Measurement(state, float(c_obs), c_kin, float(residual),
-                        float(dt_hours), t_short, t_long)
+
+    # For the constant-parameter diffusion-wave (Hayami) kernel,
+    # Var[T_L] = 2 D L / c^3. Under the same paired-convolution assumptions
+    # used by the centroid estimator, subtracting variances cancels the common
+    # upstream response just as subtracting centroids does. Keep this as a
+    # diagnostic only: #148's verdict is about celerity, not diffusivity.
+    delta_variance_s2 = (var_long_h2 - var_short_h2) * 3600.0**2
+    diffusivity_obs = None
+    if delta_variance_s2 > 0.0:
+        diffusivity_obs = float(c_obs**3 * delta_variance_s2 / (2.0 * dx))
+
+    return _Measurement(
+        state,
+        float(c_obs),
+        c_kin,
+        float(residual),
+        float(dt_hours),
+        t_short,
+        t_long,
+        var_short_h2,
+        var_long_h2,
+        diffusivity_obs,
+    )
 
 
 @criterion("wave_celerity_bounds", paired=True)
@@ -271,6 +310,12 @@ def wave_celerity_bounds(
             "short_centroid_h": item.short_centroid_h,
             "long_centroid_h": item.long_centroid_h,
             "delta_t_h": item.dt_hours,
+            "short_response_variance_h2": item.short_variance_h2,
+            "long_response_variance_h2": item.long_variance_h2,
+            "delta_response_variance_h2": (
+                item.long_variance_h2 - item.short_variance_h2
+            ),
+            "paired_diffusivity_m2_s": item.diffusivity_obs_m2_s,
         }
 
     c = [m.c_obs for m in measured]
