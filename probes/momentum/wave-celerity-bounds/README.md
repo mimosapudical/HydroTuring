@@ -19,6 +19,17 @@ hydrograph, but none identifies the transient channel-wave speed itself.
 | `momentum/routing-causality` (accepted proposal) | routed flow does not anticipate its driver | any positive but physically wrong propagation speed |
 | `momentum/froude-regime` (accepted proposal) | the reported hydraulic state stays in an admissible regime | state-dependent wave speed inside that regime |
 
+This sits next to, but is narrower than, existing hydrologic metamorphic and
+sensitivity testing. Reichert et al. (2024,
+https://doi.org/10.5194/hess-28-2505-2024) perturb hydrologic drivers and test
+whether model responses remain physically plausible, and Dawson et al. (2014,
+https://doi.org/10.2166/HYDRO.2013.222) use partial-derivative sensitivities to
+judge the physical legitimacy of neural hydrologic models. #148 does not claim
+those ideas as new. It specializes them to a governing hydraulic derivative:
+a controlled black-box perturbation is used to identify a transient
+characteristic speed, which is then compared quantitatively with the local
+derivative of the declared steady hydraulic relation.
+
 The physical gap is also one order deeper than a new state constraint. The
 neighbouring steady probes test values of the hydraulic state or an equilibrium
 constitutive relation. #148 tests the **local dynamic derivative** of that
