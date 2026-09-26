@@ -739,7 +739,12 @@ function simulate(forcing::Forcing, static::AbstractDict, timestep::AbstractStri
         removed = removed_sw[i] + removed_gw[i]
         columns[i, 1] = soil.actevap[1] / dt_days
         columns[i, 2] = mm(outflow * 86400.0)
-        columns[i, 3] = columns[i, 2] * area_km2 / 86.4
+        # Ordinary catchment mode scales the representative cell's runoff
+        # depth to the declared catchment area.  q_in is already a river
+        # discharge in m3/s, so scaling it by catchment area would apply the
+        # unit conversion twice.  In reach-routing mode expose Wflow's native
+        # river q_av directly.
+        columns[i, 3] = river_inflow ? river.q_av[1] : columns[i, 2] * area_km2 / 86.4
         columns[i, 4] = withdrawal ? -(leakage + removed) / dt_days : -leakage / dt_days
         columns[i, 5] = soil.ustoredepth[1] + soil.satwaterdepth[1]
         columns[i, 6] = snow.snow_storage[1] + snow.snow_water[1]
@@ -822,7 +827,9 @@ function simulate(forcing::Forcing, static::AbstractDict, timestep::AbstractStri
         "reported" => Dict{String, Any}(
             "evspsbl" => "actevap: interception + soil evaporation + transpiration + open water",
             "mrro" => "river q_av at the outlet + overland q_av + lateral subsurface flow out of the outlet cell, as a depth over the cell",
-            "dis" => "mrro over the catchment's area, m3/s",
+            "dis" => river_inflow ?
+                "native Wflow river q_av, m3/s; q_in already defines a reach-flow experiment" :
+                "mrro over the catchment's area, m3/s",
             "gwex" => "minus the leakage from the saturated store (zero, MaxLeakage 0), and, when the case " *
                 "prescribes a withdrawal, minus what Wflow's allocation took for it (see human_withdrawal)",
             "mrso" => "unsaturated store (all layers) + saturated store: the SBM soil column",
