@@ -49,6 +49,7 @@ criteria:
       response_hours: 72
       relative_tolerance: 0.05
       baseline_hours: 12
+      input_tracking_tolerance: 0.01
       min_response_fraction: 0.0001
       timing_floor_hours: 0.05
       ordering_margin_fraction: 0.05
