@@ -41,8 +41,12 @@ def simulate(forcing: list[dict], static: dict) -> list[dict]:
 
     dt_s = _dt_seconds(forcing)
     q = np.asarray([
-        max(float(row["pr"]) - float(row["pet"]), 0.0)
-        * 1.0e-3 * area_km2 * 1.0e6 / SECONDS_PER_DAY
+        float(row["q_in"])
+        if "q_in" in row and str(row["q_in"]).strip() != ""
+        else (
+            max(float(row["pr"]) - float(row["pet"]), 0.0)
+            * 1.0e-3 * area_km2 * 1.0e6 / SECONDS_PER_DAY
+        )
         for row in forcing
     ], dtype=float)
     delay_s = reach_length_m / CELERITY_M_S
