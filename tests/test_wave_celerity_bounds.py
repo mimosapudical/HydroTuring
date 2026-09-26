@@ -406,6 +406,37 @@ def test_generator_has_three_isolated_pulses_and_response_tail():
     assert np.diff(starts).tolist() == [8 * 24, 8 * 24]
 
 
+
+def test_generator_keeps_the_linearization_subcritical_and_small():
+    probe = registry.find_probe("momentum/wave-celerity-bounds")
+    gravity = 9.80665
+    for seed in gate_seeds(probe.id, probe.n_seeds):
+        case = build_case(probe, seed, "short")
+        width = float(case.static["width_m"])
+        slope = float(case.static["slope"])
+        manning_n = float(case.static["manning_n"])
+
+        # The highest base state is the worst Froude number in this design.
+        depth = _normal_depth(STATE_Q[-1], width, slope, manning_n)
+        velocity = STATE_Q[-1] / (width * depth)
+        froude = velocity / np.sqrt(gravity * depth)
+        assert froude < 0.5
+
+        scored = case.after_spinup(case.forcing)
+        for state, q in zip(STATES, STATE_Q):
+            marker = EVENT_COLUMNS[state]
+            pulse_rows = scored[marker].to_numpy(float) > 0.0
+            assert pulse_rows.sum() == 6
+            base_mm_day = q * 0.864
+            pulse_mm_day = scored.loc[pulse_rows, marker].to_numpy(float)
+            np.testing.assert_allclose(
+                pulse_mm_day / base_mm_day,
+                0.05,
+                rtol=0.0,
+                atol=1.0e-12,
+            )
+
+
 def test_generator_stays_inside_wide_channel_allowance():
     probe = registry.find_probe("momentum/wave-celerity-bounds")
     for seed in gate_seeds(probe.id, probe.n_seeds):
