@@ -29,25 +29,31 @@ consistent with the physics that defines its equilibrium state, not merely
 whether the equilibrium itself looks plausible.
 
 The identification step is the contribution as much as the final inequality.
-A single rainfall-to-runoff lag cannot separate channel travel from the common
-runoff-generation and storage clock. In the controlled paired experiment, write
+The probe enters at the routing control volume directly: `q_in` is a prescribed
+river inflow, not rainfall that a land model first has to turn into runoff.
+That removes runoff-generation and soil-storage physics from the question.
+
+There is still a reason to use a counterfactual length pair rather than time a
+single reach from the forcing row. A black-box adapter or router can have a
+common input clock, source-cell residence time, sub-step convention or other
+latency that is not channel propagation. Write
 
 ```
 t_response(L, Q) = t_common(Q) + t_route(L, Q).
 ```
 
-The short and long variants have byte-identical forcing and identical static
-attributes except `reach_length_m`. Their difference therefore removes the
+The short and long variants have byte-identical `q_in` and identical static
+attributes except `reach_length_m`. Their difference therefore removes that
 common term,
 
 ```
 Delta t(Q) = t_response(L_long, Q) - t_response(L_short, Q),
 ```
 
-so `Delta x / Delta t(Q)` identifies the propagation speed associated with
-the additional reach length using only the externally reported discharge.
-Repeating the same identification at low, medium and high base flow then asks
-a question no existing probe asks: whether that isolated propagation speed
+so `Delta x / Delta t(Q)` identifies the incremental propagation speed of the
+additional reach using only externally visible inflow and discharge. Repeating
+the same identification at low, medium and high base flow then asks a question
+no existing probe asks: whether that local transient propagation operator
 changes with hydraulic state as the declared reach physics requires.
 
 A fixed-celerity router is the concrete blind spot. It can conserve mass, be
@@ -135,9 +141,8 @@ Var[T_L] = 2 D L / c^3.
 ```
 
 This gives the paired experiment a stronger interpretation than "subtract two
-lags". If the common runoff-generation/storage response is `f(t)`, the outlet
-response is the convolution `f * g_L`. Temporal cumulants add under
-convolution, so
+lags". If any common upstream/input response is `f(t)`, the outlet response is the
+convolution `f * g_L`. Temporal cumulants add under convolution, so
 
 ```
 centroid(out_L) = centroid(f) + L/c.
@@ -150,7 +155,7 @@ centroid(out_long) - centroid(out_short)
     = (L_long - L_short) / c,
 ```
 
-and the unknown common upstream timing cancels. Diffusion can broaden and
+and the unknown common timing cancels. Diffusion can broaden and
 attenuate the hydrograph without moving this first-moment identity. This is why
 the probe measures a response centroid rather than a peak index. The second
 cumulant also gives a natural future diagnostic,
@@ -171,10 +176,10 @@ kinematic-diffusive wave description to study stage-dependent hydraulic
 response in stream networks, and Romanowicz & Doroszkiewicz (2019,
 https://doi.org/10.26491/MHWM/95023) review the use of impulse-response
 cumulants for linearized Saint-Venant routing. The contribution here is the
-controlled **counterfactual pairing**: evaluate the same black-box model under
-the same forcing and hydraulic state at two reach lengths, then difference
-those moments so the unknown common land/storage response cancels before the
-hydraulic derivative is tested across states.
+controlled **counterfactual pairing**: evaluate the same black-box routing
+model under the same prescribed river inflow and hydraulic state at two reach
+lengths, then difference those moments so model-specific common timing cancels
+before the hydraulic derivative is tested across states.
 
 This interpretation also has an empirical analogue. Allen et al. (2018,
 https://doi.org/10.1029/2018GL077914) estimated river-wave celerity from paired
@@ -188,8 +193,10 @@ arbitrary natural-river states.
 ## Experiment
 
 For each seed, the generator draws one mild prismatic rectangular reach
-geometry and creates three positive base discharges: 8, 16 and 32 m3/s. Only two model runs are needed per seed: a 4 km `short` reach and a 20 km
-`long` reach with byte-identical forcing. Inside each run, low, medium and high
+geometry and prescribes three positive river inflows: 8, 16 and 32 m3/s.
+`pr` is zero throughout; the experiment is routing-only. Only two model runs
+are needed per seed: a 4 km `short` reach and a 20 km `long` reach with
+byte-identical `q_in`. Inside each run, low, medium and high
 hydraulic states occupy successive eight-day blocks. Each block gets four days
 to settle, then a six-hour +5% pulse and more than three days of response tail.
 
@@ -206,8 +213,9 @@ positive transient response, and estimates
 c_obs = Delta x / (t_long - t_short).
 ```
 
-For each hydraulic state, differencing the paired reaches cancels the common
-forcing and runoff-generation clock. A 72-hour local response window ends
+For each hydraulic state, differencing the paired reaches cancels any timing
+component common to both variants and isolates the added routing distance.
+A 72-hour local response window ends
 before the next state transition, so the following plateau cannot pull the
 previous pulse centroid downstream. The generated record is hourly so timing
 quantisation is smaller than the short/long travel-time difference.
