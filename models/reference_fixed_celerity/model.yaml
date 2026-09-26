@@ -3,7 +3,7 @@ version: "1.0.0"
 description: >
   Deliberately broken routing reference for momentum/wave-celerity-bounds.
   It reads the supplied reach geometry and transports the prescribed discharge
-  to the centre gauge at a fixed positive 1 m/s, independent of hydraulic state.
+  to the reach outlet at a fixed positive 1 m/s, independent of hydraulic state.
 authors: ["HydroTuring maintainers"]
 license: PolyForm-Noncommercial-1.0.0
 runner: subprocess
