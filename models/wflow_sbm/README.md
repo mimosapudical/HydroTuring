@@ -47,6 +47,41 @@ model's variables after every step.
   subsurface outflow of the outlet cell. On the closure probe's first seed that is 80.5 %
   overland flow, 17.4 % lateral subsurface flow and 2.0 % river.
 
+### Routing-only `q_in` path
+
+The one-cell domain above remains the default for every existing catchment
+probe. Adapter `1.0.4-ht.5` adds a second, explicitly conditional domain for
+a probe that supplies HydroTuring's public `q_in` river-inflow forcing.
+
+That path is deliberately small and auditable rather than a new routing model:
+
+- two active Wflow river cells form one directed chain; the first has a fixed
+  100 m river length and drains to the second;
+- `q_in` is written only on the first cell as Wflow's native
+  `river_water__external_inflow_volume_flow_rate`;
+- the second cell receives the case's `reach_length_m`; short/long variants
+  therefore change only this downstream routing distance;
+- case `width_m`, `slope` and `manning_n` are written to Wflow's native
+  river maps; a supplied `cross_section_shape` is accepted only when it is
+  rectangular;
+- precipitation and PET can remain zero, so land runoff is not used to create
+  the experiment's hydraulic input;
+- `dis` on this path is the downstream cell's native river `q_av`, not the
+  usual catchment-total runoff reconstructed from `mrro`.
+
+The fixed source cell is identical between paired variants. Any residence time
+introduced by applying Wflow's external inflow as lateral inflow over that
+100 m cell is therefore common to both variants and cancels in the paired
+first-moment difference. The downstream test cell still uses Wflow's own
+kinematic-wave implementation and its fixed 900 s river routing sub-step.
+
+This path was added for `momentum/wave-celerity-bounds`, which needs to test
+the river-wave process without confounding it with the one-cell land model.
+It does not change the no-`q_in` path. The reach-geometry keys are declared
+as optional inputs and are consumed whenever a case supplies them, whether or
+not `q_in` is present; the manifest therefore does not claim an input the
+adapter silently ignores.
+
 **Why not one cell with the catchment's area.** Adapter version `1.0.4-ht.1` did that. A
 250 km² catchment became one 15.8 km cell draining a 22 km hillslope, and the tenfold area
 of `mass/area-invariance` a 71 km one. Wflow computes lateral flow per unit length, so the
@@ -126,7 +161,7 @@ model follows the calendar.
 | `pr` | the forcing, echoed as given |
 | `evspsbl` | Wflow's total actual evapotranspiration (`actevap`): interception, soil evaporation, transpiration, open water |
 | `mrro` | river `q_av` at the outlet + overland `q_av` + lateral subsurface `ssf` out of the outlet cell, as a depth rate over the cell |
-| `dis` | `mrro` over the catchment's area: `mrro × area_km2 / 86.4`, m3/s |
+| `dis` | default domain: `mrro × area_km2 / 86.4`, m3/s; `q_in` routing domain: native downstream river `q_av`, m3/s |
 | `gwex` | minus the leakage out of the saturated store (zero with `MaxLeakage` 0), and minus what Wflow's water allocation takes when a probe prescribes a withdrawal (below) |
 | `mrso` | the SBM soil column: unsaturated store over all layers plus the saturated store |
 | `snw` | dry snow plus the liquid water held in the pack |
@@ -258,6 +293,7 @@ Built on aarch64 (Docker Desktop, Apple silicon); image 2.05 GB. One ten-year da
 ```bash
 ht verify-adapter --model wflow_sbm
 ht run --model wflow_sbm --gate-seeds
+ht run --model wflow_sbm --probe momentum/wave-celerity-bounds --gate-seeds
 ```
 
 ## Result
