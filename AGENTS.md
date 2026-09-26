@@ -37,7 +37,7 @@ Paths inside `request.json` are relative to the request file's directory.
                           and, when a probe prescribes a human withdrawal, abstr (mm/day, net);
                           when a probe prescribes an external hydraulic head, gwh (m);
                           a reach-routing probe may supply q_in (m3/s), prescribed
-                          upstream river inflow; a groundwater-exchange probe supplies gw_recharge (mm/day)
+                          external river inflow into the tested reach/control volume; a groundwater-exchange probe supplies gw_recharge (mm/day)
                           and sw_stage_m (m) instead
 /io/input/static.json     read-only: catchment attributes
 /io/output/result.csv     write: one row per forcing row, spinup included
@@ -68,12 +68,14 @@ with the spinup identical across the runs. A model whose exchange is not
 head-driven should not declare `gwh`; the probe requires the column, so such a
 model is INCOMPATIBLE on it and its standing is untouched.
 
-A reach-routing probe may prescribe `q_in` in m3/s. It is upstream river
-inflow at the modelled reach boundary, not precipitation, runoff depth or a
-catchment-wide source. A model declares `q_in` under `needs_forcing` or
-`uses_forcing` only when it can inject that discharge into its own routing
-physics. The same `q_in` series can then be served to counterfactual reach
-geometries without changing land runoff generation.
+A reach-routing probe may prescribe `q_in` in m3/s. It is external river
+inflow into the tested reach/control volume, not precipitation, runoff depth
+or a catchment-wide source. A model declares `q_in` under `needs_forcing`
+or `uses_forcing` only when it can inject that discharge through its native
+river-routing input path. The contract does not prescribe whether that native
+path is represented internally as a boundary or a reach source. The same
+`q_in` series can then be served to counterfactual reach geometries without
+changing land runoff generation.
 
 A groundwater-exchange probe instead supplies `gw_recharge` (mm/day, direct
 recharge to the aquifer) and `sw_stage_m` (metres, the river stage the
@@ -165,7 +167,7 @@ numbers in both runs; keep it that way and do not reseed from the clock.
 | Name | Meaning | Units |
 | --- | --- | --- |
 | `pr` | precipitation, echoed back from the forcing | mm/day |
-| `q_in` | prescribed upstream river inflow supplied by a reach-routing probe; forcing only, not a model-emitted catchment flux | m3/s |
+| `q_in` | prescribed external river inflow into the tested reach/control volume; forcing only, not a model-emitted catchment flux | m3/s |
 | `evspsbl` | evapotranspiration | mm/day |
 | `mrro` | total runoff | mm/day |
 | `dis` | river discharge | m3/s |

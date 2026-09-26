@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import hydroturing.criteria.wave_celerity as wave_celerity_module
 from hydroturing import registry
 from hydroturing.criteria import get, is_paired
 from hydroturing.harness import build_case, compatibility_issues, run_probe
@@ -503,6 +504,81 @@ def test_generator_stays_inside_wide_channel_allowance():
         wide_depth = (q * n / (width * slope ** 0.5)) ** (3.0 / 5.0)
         wide = (5.0 / 3.0) * q / (width * wide_depth)
         assert abs(wide - exact) / exact < 0.05
+
+
+def test_relative_tolerance_accepts_just_inside_and_rejects_just_outside(monkeypatch):
+    c_kin = {"low": 1.0, "medium": 1.3, "high": 1.7}
+
+    def measurement(state: str, factor: float):
+        expected = c_kin[state]
+        observed = factor * expected
+        return wave_celerity_module._Measurement(
+            state=state,
+            c_obs=observed,
+            c_kin=expected,
+            residual=factor - 1.0,
+            dt_hours=1.0,
+            short_centroid_h=10.0,
+            long_centroid_h=11.0,
+            short_variance_h2=1.0,
+            long_variance_h2=2.0,
+            diffusivity_obs_m2_s=1.0,
+            prescribed_base_q_m3s=STATE_Q[STATES.index(state)],
+        )
+
+    factors = {"low": 1.049, "medium": 1.049, "high": 1.049}
+    monkeypatch.setattr(
+        wave_celerity_module,
+        "_pair",
+        lambda runs, probe, params, state: measurement(state, factors[state]),
+    )
+    inside = wave_celerity_module.wave_celerity_bounds(
+        {"short": object(), "long": object()}, _probe(), _params()
+    )
+    assert inside.passed, inside.message
+
+    factors["medium"] = 1.051
+    outside = wave_celerity_module.wave_celerity_bounds(
+        {"short": object(), "long": object()}, _probe(), _params()
+    )
+    assert not outside.passed
+    assert "medium" in outside.message
+
+
+def test_common_time_origin_shift_does_not_change_paired_celerity():
+    baseline = get("wave_celerity_bounds")(
+        _synthetic_runs(),
+        _probe(),
+        _params(),
+    )
+    assert baseline.passed, baseline.message
+
+    shifted = {}
+    for side, run in _synthetic_runs().items():
+        forcing = run.case.forcing.copy()
+        table = run.table.copy()
+        forcing["time"] = (
+            pd.to_datetime(forcing["time"]) + pd.Timedelta(hours=37)
+        ).dt.strftime("%Y-%m-%dT%H:%M:%S")
+        table["time"] = (
+            pd.to_datetime(table["time"]) + pd.Timedelta(hours=37)
+        ).dt.strftime("%Y-%m-%dT%H:%M:%S")
+        case = Case(
+            probe_id=run.case.probe_id,
+            seed=run.case.seed,
+            forcing=forcing,
+            static=dict(run.case.static),
+            spinup_steps=run.case.spinup_steps,
+            timestep=run.case.timestep,
+        )
+        shifted[side] = RunResult(case, table, run.meta, run.wall_seconds)
+
+    moved = get("wave_celerity_bounds")(shifted, _probe(), _params())
+    assert moved.passed, moved.message
+    for state in STATES:
+        assert moved.diagnostics["states"][state]["c_obs_m_s"] == pytest.approx(
+            baseline.diagnostics["states"][state]["c_obs_m_s"], rel=0.0, abs=1.0e-12
+        )
 
 
 def test_analytic_measurement_passes_when_celerity_matches_manning():
