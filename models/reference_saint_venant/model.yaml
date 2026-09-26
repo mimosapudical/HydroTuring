@@ -4,9 +4,10 @@ description: >
   A one-dimensional finite-volume Saint-Venant solver for a prismatic
   rectangular reach. It prescribes upstream discharge, advances continuity
   and momentum with bed-slope and Manning-friction source terms from a
-  non-equilibrium state. Daily cases retain the settled-state path; sub-daily
-  cases continuously advance the same equations through each output interval
-  and report the interior gauge. It never evaluates or inverts the Manning
+  non-equilibrium state. Daily cases retain the settled-state interior-gauge
+  path; sub-daily cases continuously advance the same equations through each
+  output interval and report the reach outlet so paired reach lengths measure
+  the full propagation-distance difference. It never evaluates or inverts the Manning
   normal-depth formula.
 authors: ["HydroTuring maintainers"]
 license: PolyForm-Noncommercial-1.0.0
