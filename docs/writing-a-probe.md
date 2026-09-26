@@ -144,10 +144,12 @@ Picking a denominator for `closure` and `regime_transfer`:
 | `sum_inflow` | routing | not needed |
 
 `sum_inflow` reads the public forcing column `q_in`: prescribed river inflow
-in m3/s, positive into the routing control volume. A probe that relies on it
-must list `q_in` under `requires.forcing`, and an eligible model must actually
-consume it through `needs_forcing` or `uses_forcing`; see the /io contract in
-`AGENTS.md`.
+in m3/s, positive into the routing control volume. Before comparing it with
+the suite's mm/day water fluxes and mm storages, `closure` converts each row
+to catchment-equivalent depth using `area_km2`; a probe using this denominator
+therefore also needs that static area. The probe must list `q_in` under
+`requires.forcing`, and an eligible model must actually consume it through
+`needs_forcing` or `uses_forcing`; see the /io contract in `AGENTS.md`.
 
 ### Labelled stretches
 
