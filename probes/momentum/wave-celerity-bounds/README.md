@@ -5,6 +5,48 @@ left open by `momentum/routing-lag-consistency`: does transient propagation
 speed respond to hydraulic state, rather than merely staying causal and getting
 slower in longer reaches?
 
+## Why this is a separate momentum probe
+
+The neighbouring momentum checks constrain different projections of the same
+hydrograph, but none identifies the transient channel-wave speed itself.
+
+| Check | What it constrains | What remains invisible |
+| --- | --- | --- |
+| `momentum/routing-conservation` | routed water is not created or destroyed | timing and propagation speed |
+| `momentum/routing-lag-consistency` | gross rainfall-to-runoff lag grows on a geomorphic travel-time scale | runoff generation, storage and channel travel are mixed into one lag; a fixed positive celerity can pass |
+| `momentum/stage-discharge-monotonic` | the reported rating is monotone and any hysteresis has the physical sign | how fast a transient moves down the reach |
+| `momentum/uniform-flow-friction-consistency` | steady discharge and stage satisfy the declared Manning balance | the characteristic speed of a transient about that steady state |
+| `momentum/routing-causality` (accepted proposal) | routed flow does not anticipate its driver | any positive but physically wrong propagation speed |
+| `momentum/froude-regime` (accepted proposal) | the reported hydraulic state stays in an admissible regime | state-dependent wave speed inside that regime |
+
+The identification step is the contribution as much as the final inequality.
+A single rainfall-to-runoff lag cannot separate channel travel from the common
+runoff-generation and storage clock. In the controlled paired experiment, write
+
+```
+t_response(L, Q) = t_common(Q) + t_route(L, Q).
+```
+
+The short and long variants have byte-identical forcing and identical static
+attributes except `reach_length_m`. Their difference therefore removes the
+common term,
+
+```
+Delta t(Q) = t_response(L_long, Q) - t_response(L_short, Q),
+```
+
+so `Delta x / Delta t(Q)` identifies the propagation speed associated with
+the additional reach length using only the externally reported discharge.
+Repeating the same identification at low, medium and high base flow then asks
+a question no existing probe asks: whether that isolated propagation speed
+changes with hydraulic state as the declared reach physics requires.
+
+A fixed-celerity router is the concrete blind spot. It can conserve mass, be
+strictly causal, delay a longer reach more than a shorter one, remain
+subcritical, and even have a Manning-consistent steady rating while still using
+the same transient speed at every discharge. #148 is designed to reject that
+specific construction.
+
 ## Experiment
 
 For each seed, the generator draws one mild prismatic rectangular reach
