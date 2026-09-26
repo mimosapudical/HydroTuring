@@ -285,9 +285,10 @@ stays open for the day a contract carries inflow.
 A route a later probe could take, from the second review of that pull request:
 `closure` accepts `denominator: sum_inflow`, which reads a forcing column
 `q_in`, and since #39 a probe can require models to declare that they consume it
-through `requires.forcing`. For a reach-only control volume that forms
-`[sum(q_in) - sum(mrro) - d(channel)] / sum(q_in)`, which on a reach-only router
-is complementary to the bound: destroying the last tenth fails it and passes the
+through `requires.forcing`. For a reach-only control volume, `closure` first converts the prescribed
+`q_in` from m3/s to per-step catchment-equivalent depth with `area_km2`, then
+forms the usual inflow-minus-outflow-minus-storage identity. On a reach-only
+router this is complementary to the bound: destroying the last tenth fails it and passes the
 bound, holding the water back does the reverse. It carries conditions that have
 to be written down with it — `closure` sums every reported store, so a
 full-catchment model needs the control volume set up explicitly; the denominator
