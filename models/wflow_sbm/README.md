@@ -298,7 +298,7 @@ ht run --model wflow_sbm --probe momentum/wave-celerity-bounds --gate-seeds
 
 ## Result
 
-**FAIL (VIOLATION), 19 of 22 probes passed**, adapter `1.0.4-ht.4`, on the gate seeds, every
+**FAIL (VIOLATION), 19 of 22 probes passed**, adapter `1.0.4-ht.5`, on the gate seeds, every
 case on the full record (`window_days: full`).
 
 | Probe | Verdict | Reason | Detail |
@@ -310,6 +310,7 @@ case on the full record (`window_days: full`).
 | `energy/pet-consistency` | PASS | OK | evaporation 0.96 of demand when the soil is wettest, 0.15 when driest |
 | `energy/radiation-consistency` | N/A | INCOMPLETE | does not report `rlus`, `ts` |
 | `energy/surface-energy-closure` | N/A | INCOMPLETE | does not report `hfls`, `hfss`, `hfg` |
+| `energy/snowmelt-energy-water` | N/A | INCOMPLETE | does not report snow-energy diagnostics or consume `rn` |
 | `mass/antecedent-monotonicity` | FAIL | VIOLATION | a wet month before the storm adds almost no runoff (0.0013 and 0.0005 of the storm on 2 of 3 seeds, where 0.02 is asked) |
 | `mass/area-invariance` | PASS | OK | identical to floating point at ten times the area |
 | `mass/catchment-closure` | PASS | OK | residual 1.8e-4 to 2.1e-4 of the rain; runoff ratio 0.45 to 0.52; ET 0.53 to 0.63 of demand |
@@ -318,15 +319,24 @@ case on the full record (`window_days: full`).
 | `mass/extreme-event-closure` | FAIL | VIOLATION | one event fails, on one seed: on a 0.006 mm drizzle day the river kinematic wave creates 0.0016 mm, past the 0.001 mm floor (see The budget); the other four seeds' worst events are within 0.54 of their allowance |
 | `mass/extreme-rain` | PASS | OK | returns 1.00 of the rain added at every rung |
 | `mass/human-abstraction` | PASS | OK | the prescribed 380 mm leave the budget to within 0.8 to 1.1 % of it; on the worst seed evaporation −124 mm, runoff −270 mm, storage +18 mm |
+| `mass/exchange-response` | N/A | INCOMPATIBLE | does not consume the prescribed external head `gwh` |
+| `mass/gw-sw-exchange-consistency` | N/A | INCOMPLETE | does not report groundwater-river exchange components or aquifer storage |
+| `mass/multi-decadal-drift` | PASS | OK | final repeated-block total storage drift is 0 mm on the archived seeds |
 | `mass/phase-counterfactual` | PASS | OK | snow as rain moves the volumes by 0.6 to 3.8 % of the rain |
 | `mass/precipitation-counterfactual` | PASS | OK | rain 20 % wetter, 10 % wetter or 20 % drier: evaporation takes 0.20 to 0.22 of the change, runoff 0.75 to 0.78, storage 0.02, summing to 1.0001; runoff rises on every rung |
 | `mass/resolution-invariance` | PASS | OK | PT1D against PT1H: 0.4 to 1.1 % of the rain |
 | `mass/response-nonnegativity` | PASS | OK | largest dip 7.5e-4 of the added rain (limit 1e-3) |
+| `mass/snowpack-mass-closure` | N/A | INCOMPLETE | does not report snow-module liquid outflow `snm` |
+| `mass/spinup-cycle-invariance` | PASS | OK | repeated forcing reaches the same evaluation-year response after all selected spin-up histories |
 | `mass/runoff-bounds` | PASS | OK | runoff 0.49 to 0.52 of the rain, inside the bounds |
 | `mass/steady-state` | PASS | OK | nothing varies; the budget balances to 1e-14 mm/day |
 | `mass/time-origin-invariance` | PASS | OK | identical to floating point in 1972 and 2000 |
 | `mass/warming-response` | PASS | OK | runoff falls by 0.27 to 0.31 per unit of added demand |
 | `momentum/routing-conservation` | PASS | OK | the channel holds at most 0.16 of what a 15-day hydrograph of recent runoff allows |
+| `momentum/routing-lag-consistency` | N/A | INCOMPATIBLE | does not consume the catchment-scale channel-length contract used by that separate lag probe |
+| `momentum/stage-discharge-monotonic` | N/A | INCOMPLETE | does not report `stage` |
+| `momentum/uniform-flow-friction-consistency` | N/A | INCOMPLETE | does not report `stage` |
+| `momentum/wave-celerity-bounds` | PASS | OK | native Wflow routing gives low=0.704 < medium=0.927 < high=1.225 m/s, all within the 5% Manning/kinematic allowance |
 
 The five energy probes that need an energy output are N/A (INCOMPLETE) because wflow_sbm
 computes no latent, sensible or ground heat flux and no surface temperature; that is the
