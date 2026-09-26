@@ -5,12 +5,13 @@ description: >
   (van Verseveld et al. 2024, GMD, which evaluates v0.7.3): the SBM soil column
   with an unsaturated and a saturated store, Gash or Rutter interception, HBV
   snow, and kinematic waves for lateral subsurface, overland and river flow.
-  Run through Wflow's own time loop on one representative cell at the
-  resolution of Wflow's Moselle test model, land, river and outlet at once,
-  every depth per unit area, with the catchment's soil and canopy capacities
-  and snow parameters from static.json and every other parameter from the
-  Moselle model's medians. The catchment's area enters only the discharge.
-  The adapter is written in Julia. README.md lists every choice.
+  Run through Wflow's own time loop. Ordinary catchment probes use one
+  representative land/river/outlet cell at the resolution of Wflow's Moselle
+  test model, with catchment capacities from static.json and remaining
+  parameters from Moselle medians. A case that supplies q_in instead uses the
+  documented two-cell native river-routing path so prescribed inflow traverses
+  the declared reach geometry. The adapter is written in Julia; README.md
+  lists every choice and both domains.
 authors:
   - "Deltares and contributors (Wflow.jl); van Verseveld et al. (2024)"
   - "HydroTuring maintainers (adapter)"
