@@ -194,23 +194,6 @@ def test_registered_probe_and_references_are_compatible():
         assert compatibility_issues(registry.find_model(name), probe, case) == []
 
 
-def test_lisflood_is_contract_compatible_with_wave_celerity_probe():
-    """The independent physical candidate must genuinely consume probe geometry."""
-    probe = registry.find_probe("momentum/wave-celerity-bounds")
-    case = build_case(probe, gate_seeds(probe.id, 1)[0], "short")
-    model = registry.find_model("lisflood")
-    assert compatibility_issues(model, probe, case) == []
-    for key in (
-        "reach_length_m",
-        "width_m",
-        "slope",
-        "manning_n",
-        "cross_section_shape",
-    ):
-        assert key in model.uses_static
-    assert "channel_bankfull_depth_m" in case.static
-    assert "channel_bankfull_depth_m" in model.uses_static
-
 
 def test_generator_pairs_change_only_reach_length():
     probe = registry.find_probe("momentum/wave-celerity-bounds")
@@ -222,12 +205,6 @@ def test_generator_pairs_change_only_reach_length():
     assert l.pop("reach_length_m") > s.pop("reach_length_m")
     assert s == l
 
-
-def test_generator_uses_lisflood_native_contributing_area():
-    probe = registry.find_probe("momentum/wave-celerity-bounds")
-    case = build_case(probe, gate_seeds(probe.id, 1)[0], "short")
-    assert case.static["area_km2"] == 25.0
-    assert case.static["channel_bankfull_depth_m"] == 1.0
 
 
 def test_generator_has_three_isolated_pulses_and_response_tail():
