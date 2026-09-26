@@ -16,10 +16,7 @@ STATE_Q = {"low": 8.0, "medium": 16.0, "high": 32.0}
 LENGTHS = {"short": 4000.0, "long": 20000.0}
 SETTLE_DAYS = 4
 PULSE_HOURS = 6
-
-
-def _effective_mm_day(q_m3s: float) -> float:
-    return q_m3s * 86400.0 / (1.0e-3 * AREA_KM2 * 1.0e6)
+PULSE_FRACTION = 0.05
 
 
 def generate(seed: int, variant: str = "short") -> tuple[pd.DataFrame, dict]:
@@ -35,16 +32,12 @@ def generate(seed: int, variant: str = "short") -> tuple[pd.DataFrame, dict]:
     manning_n = float(rng.uniform(0.028, 0.038))
     bed = float(rng.uniform(40.0, 120.0))
 
-    # One short and one long run carry the same three hydraulic states. Each
-    # scored state gets four days to settle, then the same six-hour +5% pulse
-    # and more than three days of response tail before the next state begins.
+    # q_in is an upstream river-boundary discharge in m3/s.  The experiment
+    # therefore addresses the reach-routing operator directly: precipitation,
+    # land runoff generation and evapotranspiration are deliberately inactive.
     # Hidden pulse columns are stripped before the model sees forcing.csv.
-    low = _effective_mm_day(STATE_Q["low"])
-    pr = np.full(N_STEPS, low)
-    pulses = {
-        state: np.zeros(N_STEPS, dtype=float)
-        for state in STATE_Q
-    }
+    q_in = np.full(N_STEPS, STATE_Q["low"], dtype=float)
+    pulses = {state: np.zeros(N_STEPS, dtype=float) for state in STATE_Q}
 
     scored_start = SPINUP_DAYS * 24
     block_steps = STATE_BLOCK_DAYS * 24
@@ -52,22 +45,22 @@ def generate(seed: int, variant: str = "short") -> tuple[pd.DataFrame, dict]:
     for block, (state, q_m3s) in enumerate(STATE_Q.items()):
         start = scored_start + block * block_steps
         stop = start + block_steps
-        base = _effective_mm_day(q_m3s)
-        pr[start:stop] = base
+        q_in[start:stop] = q_m3s
         pulse_start = start + settle_steps
         pulse_stop = pulse_start + PULSE_HOURS
-        pulse = 0.05 * base
-        pr[pulse_start:pulse_stop] += pulse
+        pulse = PULSE_FRACTION * q_m3s
+        q_in[pulse_start:pulse_stop] += pulse
         pulses[state][pulse_start:pulse_stop] = pulse
 
-    tas = np.full(N_STEPS, 15.0)
-    pet = np.zeros(N_STEPS)
     time = pd.date_range("2001-01-01", periods=N_STEPS, freq="h")
     forcing = pd.DataFrame({
         "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "pr": pr,
-        "tas": tas,
-        "pet": pet,
+        # Keep the standard meteorological columns present so adapters that
+        # require the base contract can run, but they carry no hydraulic drive.
+        "pr": np.zeros(N_STEPS, dtype=float),
+        "tas": np.full(N_STEPS, 15.0),
+        "pet": np.zeros(N_STEPS, dtype=float),
+        "q_in": q_in,
         "_pulse_low": pulses["low"],
         "_pulse_medium": pulses["medium"],
         "_pulse_high": pulses["high"],
