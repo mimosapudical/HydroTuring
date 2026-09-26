@@ -133,8 +133,14 @@ jobs:
           statics = {}
 
           for side in ("short", "long"):
-              d = root / f"lisflood__wave-celerity-bounds__397273707__{side}"
-              tables[side] = pd.read_csv(d / "output/result.csv")
+              matches = list(root.glob(f"**/*{side}/output/result.csv"))
+              if not matches:
+                  raise FileNotFoundError(
+                      f"no {side} result under {root}; found {list(root.rglob('result.csv'))}"
+                  )
+              result = matches[0]
+              d = result.parents[1]
+              tables[side] = pd.read_csv(result)
               statics[side] = json.loads((d / "input/static.json").read_text())
               print(f"DIAG_DIR {side}={d}")
 
