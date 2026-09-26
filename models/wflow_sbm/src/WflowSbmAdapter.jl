@@ -123,7 +123,7 @@ using PrecompileTools: @compile_workload, @setup_workload
 using TOML: TOML
 using Wflow: Wflow
 
-const MODEL = Dict{String, Any}("name" => "wflow_sbm", "version" => "1.0.4-ht.4")
+const MODEL = Dict{String, Any}("name" => "wflow_sbm", "version" => "1.0.4-ht.5")
 const WFLOW = Dict{String, Any}(
     "package" => "Wflow.jl", "version" => "1.0.4",
     "commit" => "82df72031511339d50fd9142fa159d0ec13e73c5", "model_type" => "sbm",
@@ -232,6 +232,7 @@ struct Forcing
     tas::Vector{Float64}
     pet::Vector{Float64}
     abstr::Union{Nothing, Vector{Float64}}  # prescribed net withdrawal, mm/day, when the case gives one
+    q_in::Union{Nothing, Vector{Float64}}   # prescribed external river inflow, m3/s
 end
 
 function read_forcing(path::AbstractString)
@@ -248,6 +249,7 @@ function read_forcing(path::AbstractString)
         [String(strip(r[col["pr"]])) for r in rows],
         number("pr"), number("tas"), number("pet"),
         haskey(col, "abstr") ? number("abstr") : nothing,
+        haskey(col, "q_in") ? number("q_in") : nothing,
     )
 end
 
@@ -401,7 +403,7 @@ function write_forcing(path::AbstractString, cell::Float64, stamps::Vector{DateT
 end
 
 function write_config(path::AbstractString, first_end::DateTime, last_end::DateTime, dt::Int;
-                      withdrawal::Bool = false)
+                      withdrawal::Bool = false, river_inflow::Bool = false)
     config = Dict{String, Any}(
         "dir_input" => ".",
         "dir_output" => ".",
@@ -440,6 +442,9 @@ function write_config(path::AbstractString, first_end::DateTime, last_end::DateT
             "static" => Dict{String, Any}(STATIC_NAMES),
         ),
     )
+    if river_inflow
+        config["input"]["forcing"]["river_water__external_inflow_volume_flow_rate"] = "river_inflow"
+    end
     if withdrawal
         # A prescribed net withdrawal goes through Wflow's own water demand and allocation: the
         # domestic sector, with gross and net demand both the prescription (so no return flow),
@@ -651,6 +656,20 @@ function simulate(forcing::Forcing, static::AbstractDict, timestep::AbstractStri
     cell, capacity, maps = catchment(static)
     cell = apply_overrides!(maps, cell, static, capacity, overrides)
 
+    # Reach geometry is an optional contract path.  It changes only Wflow's
+    # native river kinematic-wave parameters; the land cell/grid stays fixed.
+    if haskey(static, "cross_section_shape")
+        lowercase(strip(String(static["cross_section_shape"]))) == "rectangular" ||
+            error("wflow_sbm reach-routing contract requires rectangular geometry")
+    end
+    haskey(static, "reach_length_m") && (maps["wflow_riverlength"] = Float64(static["reach_length_m"]))
+    haskey(static, "width_m") && (maps["wflow_riverwidth"] = Float64(static["width_m"]))
+    haskey(static, "slope") && (maps["RiverSlope"] = Float64(static["slope"]))
+    haskey(static, "manning_n") && (maps["N_River"] = Float64(static["manning_n"]))
+    for key in ("wflow_riverlength", "wflow_riverwidth", "RiverSlope", "N_River")
+        Float64(maps[key]) > 0 || error("declared river geometry must stay positive")
+    end
+
     stamps = [parse_time(t) + Second(dt) for t in forcing.time]
     write_static_maps(joinpath(workdir, "staticmaps.nc"), cell, maps)
     withdrawal = forcing.abstr !== nothing
@@ -663,8 +682,17 @@ function simulate(forcing::Forcing, static::AbstractDict, timestep::AbstractStri
     # a supply, not a withdrawal, and is not passed on (run.json counts such steps).
     prescribed_mm = withdrawal ? max.(forcing.abstr, 0.0) .* dt_days : zeros(n)
     withdrawal && push!(series, "abstr" => prescribed_mm)
+    river_inflow = forcing.q_in !== nothing
+    if river_inflow
+        all(isfinite, forcing.q_in) || error("q_in must be finite")
+        all(>=(0.0), forcing.q_in) || error("q_in must be non-negative for this routing contract")
+        push!(series, "river_inflow" => forcing.q_in)
+    end
     write_forcing(joinpath(workdir, "forcing.nc"), cell, stamps, series)
-    toml = write_config(joinpath(workdir, "wflow_sbm.toml"), stamps[1], stamps[end], dt; withdrawal)
+    toml = write_config(
+        joinpath(workdir, "wflow_sbm.toml"), stamps[1], stamps[end], dt;
+        withdrawal, river_inflow,
+    )
 
     config = Wflow.Config(toml)
     model = Wflow.Model(config)
@@ -719,8 +747,9 @@ function simulate(forcing::Forcing, static::AbstractDict, timestep::AbstractStri
         columns[i, 8] = mm(overland.storage[1] + river.storage[1])
 
         before = i == 1 ? initial : stored(i - 1)
-        residual = forcing.pr[i] * dt_days - leakage - removed - soil.actevap[1] - columns[i, 2] * dt_days -
-            (stored(i) - before)
+        river_input_mm = river_inflow ? mm(forcing.q_in[i] * dt) : 0.0
+        residual = forcing.pr[i] * dt_days + river_input_mm - leakage - removed -
+            soil.actevap[1] - columns[i, 2] * dt_days - (stored(i) - before)
         worst_residual = max(worst_residual, abs(residual))
         cumulative_residual += residual
         wflow_errors[1] = max(wflow_errors[1], abs(balance.land_water_balance.error[1]))
@@ -782,6 +811,14 @@ function simulate(forcing::Forcing, static::AbstractDict, timestep::AbstractStri
             "floodplains", "lateral snow transport", "frozen-soil infiltration reduction",
             "open water outside the river (WaterFrac 0)", "leakage from the saturated store (MaxLeakage 0)",
         ],
+        "prescribed_river_inflow" => river_inflow ? Dict{String, Any}(
+            "forcing_column" => "q_in",
+            "wflow_standard_name" => "river_water__external_inflow_volume_flow_rate",
+            "units" => "m3/s",
+            "minimum_m3s" => minimum(forcing.q_in),
+            "maximum_m3s" => maximum(forcing.q_in),
+            "mapping" => "native Wflow external inflow added to river kinematic-wave inflow",
+        ) : nothing,
         "reported" => Dict{String, Any}(
             "evspsbl" => "actevap: interception + soil evaporation + transpiration + open water",
             "mrro" => "river q_av at the outlet + overland q_av + lateral subsurface flow out of the outlet cell, as a depth over the cell",
