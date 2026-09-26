@@ -66,12 +66,11 @@ low by about 9--13%, 128 cells by about 4--8%, and tested 256-cell cases by
 about 2--4%. The production transient path therefore uses 256 cells rather than
 widening the physical tolerance to cover coarse-grid diffusion.
 
-The production generator also keeps the synthetic section deliberately wide:
-60--90 m for 8--32 m3/s. Across the generator's full slope and roughness
-ranges, the wide-channel kinematic approximation used by Wflow differs from
-the exact rectangular dQ/dA used by the criterion by at most about 2.2%. The
-4 km / 20 km pair gives an 8 km extra centreline distance, so the short/long
-centroid delay remains resolved at the one-hour output step even at high flow.
+The production generator keeps the synthetic section deliberately wide
+(60--90 m for 8--32 m3/s) and uses a 4 km / 20 km pair. Because the reported
+discharge is read at the reach outlet, the paired propagation distance is the
+full 16 km length difference. The resulting short/long centroid delay remains
+resolved at the one-hour output step even at high flow.
 
 ## Baselines and applicability
 
