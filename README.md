@@ -82,7 +82,10 @@ with any probe pull request. Twelve of the thirty-four require no model output
 beyond runoff. That output-only count includes `momentum/routing-lag-consistency`,
 which is eligible only when the model also declares that it consumes `pr` and
 the three geometry inputs `area_km2`, `main_channel_length_km` and
-`centroid_channel_length_km`. `ht list` prints the probes;
+`centroid_channel_length_km`. `momentum/wave-celerity-bounds` instead
+enters directly at the routing control volume through prescribed `q_in` and
+uses only outlet `dis` to identify the local transient propagation speed from
+a paired reach-length counterfactual. `ht list` prints the probes;
 [ROADMAP.md](ROADMAP.md#probes-we-want) has the four more we want, all
 unclaimed.
 
