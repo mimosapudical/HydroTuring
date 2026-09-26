@@ -5,17 +5,18 @@ on:
     branches: [probe-wave-celerity-bounds]
     paths:
       - '.github/workflows/wave-celerity-wflow-audit.yml'
-  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  archive:
+  audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -25,21 +26,19 @@ jobs:
       - name: Validate and focused tests
         run: |
           ht validate
-          pytest -q tests/test_wave_celerity_bounds.py
-      - name: Re-evaluate Wflow ht.5 on every probe
+          pytest -q tests/test_wave_celerity_bounds.py tests/test_routing_inflow_contract.py
+      - name: Re-evaluate final #148 criterion on Wflow
         run: |
-          set +e
           ht run --model wflow_sbm \
+                 --probe momentum/wave-celerity-bounds \
                  --gate-seeds \
-                 --csv /tmp/wflow-ht5.csv \
-                 --markdown | tee /tmp/wflow-full.txt
-          code=${PIPESTATUS[0]}
-          cat /tmp/wflow-full.txt
-          if [ "$code" -gt 1 ]; then
-            exit "$code"
-          fi
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: wflow-ht5-archive
-          path: /tmp/wflow-ht5.csv
+                 --csv models/result.csv \
+                 --markdown | tee /tmp/wflow-wave-final.txt
+      - name: Commit final independent-evidence row
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add models/result.csv
+          git diff --cached --quiet && exit 0
+          git commit -m "results: refresh Wflow wave-celerity evidence"
+          git push origin HEAD:probe-wave-celerity-bounds
