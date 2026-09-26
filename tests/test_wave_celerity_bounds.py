@@ -207,6 +207,39 @@ def test_generator_pairs_change_only_reach_length():
 
 
 
+
+def test_pair_rejects_any_static_change_besides_reach_length():
+    runs = _synthetic_runs()
+    long = runs["long"]
+    static = dict(long.case.static)
+    static["width_m"] = float(static["width_m"]) * 1.01
+    runs["long"] = RunResult(
+        Case(
+            probe_id=long.case.probe_id,
+            seed=long.case.seed,
+            forcing=long.case.forcing,
+            static=static,
+            spinup_steps=long.case.spinup_steps,
+            timestep=long.case.timestep,
+        ),
+        long.table,
+        long.meta,
+        long.wall_seconds,
+    )
+    with pytest.raises(ValueError, match="differ in static 'width_m'"):
+        get("wave_celerity_bounds")(runs, _probe(), _params())
+
+
+def test_pair_rejects_a_shifted_base_state():
+    runs = _synthetic_runs()
+    long = runs["long"]
+    table = long.table.copy()
+    table["dis"] = table["dis"] * 1.02
+    runs["long"] = RunResult(long.case, table, long.meta, long.wall_seconds)
+    with pytest.raises(ValueError, match="base discharges disagree"):
+        get("wave_celerity_bounds")(runs, _probe(), _params())
+
+
 def test_generator_has_three_isolated_pulses_and_response_tail():
     probe = registry.find_probe("momentum/wave-celerity-bounds")
     case = build_case(probe, gate_seeds(probe.id, 1)[0], "short")
@@ -272,7 +305,7 @@ def test_nonfinite_discharge_is_a_scientific_failure_not_an_exception():
     assert result.diagnostics == {"variant": "short", "nonfinite_count": 1}
 
 
-def test_fixed_celerity_fails_state_response():
+def test_state_response_catches_fixed_celerity_when_magnitude_check_is_neutralized():
     result = get("wave_celerity_bounds")(
         _synthetic_runs((1.0, 1.0, 1.0)),
         _probe(),
