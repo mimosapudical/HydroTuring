@@ -165,7 +165,7 @@ os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
 import numpy as np  # noqa: E402
 
-MODEL = {"name": "lisflood", "version": "5.0.0-onecell.6"}
+MODEL = {"name": "lisflood", "version": "5.0.0-onecell.5"}
 COLUMNS = ["time", "pr", "evspsbl", "mrro", "dis", "gwex", "mrso", "snw", "canopy", "gw", "channel"]
 TIMESTEP_SECONDS = {"PT1D": 86400, "PT1H": 3600, "PT15M": 900, "PT5M": 300, "PT1M": 60}
 
@@ -344,60 +344,6 @@ def catchment_parameters(static: dict) -> tuple[dict, dict]:
     canopy = float(static["canopy_capacity_mm"])
     p["LAI"] = lai_for_canopy_capacity(canopy)
     source["LAI"] = "static.json canopy_capacity_mm through LISFLOOD's SMax(LAI), constant in time"
-    routing_keys = {
-        "width_m", "cross_section_shape", "slope", "manning_n",
-        "reach_length_m", "channel_bankfull_depth_m",
-    }
-    present = routing_keys.intersection(static)
-    if present:
-        missing = sorted(routing_keys.difference(static))
-        if missing:
-            raise ValueError(
-                "LISFLOOD routing geometry must be supplied as one complete set; "
-                f"missing {missing}"
-            )
-        shape = str(static["cross_section_shape"]).strip().lower()
-        if shape != "rectangular":
-            raise ValueError(
-                "LISFLOOD explicit routing geometry requires rectangular cross_section_shape"
-            )
-        width = float(static["width_m"])
-        slope = float(static["slope"])
-        manning_n = float(static["manning_n"])
-        bankfull = float(static["channel_bankfull_depth_m"])
-        length = float(static["reach_length_m"])
-        if not all(
-            math.isfinite(v) and v > 0.0
-            for v in (width, slope, manning_n, bankfull, length)
-        ):
-            raise ValueError(
-                "LISFLOOD explicit routing geometry must be finite and positive"
-            )
-
-        # Feed the declared reach into LISFLOOD's existing kinematic-wave
-        # parameters. ChanSdXdY=0 is its rectangular-section convention.
-        p["CalChanMan"] = 1.0
-        p["ChanMan"] = manning_n
-        p["ChanBottomWidth"] = width
-        p["ChanDepthThreshold"] = bankfull
-        p["ChanSdXdY"] = 0.0
-        p["ChanGrad"] = slope
-        # The hourly model step otherwise gives the implicit channel solver a
-        # single 3600 s routing step.  Resolve kilometre-scale transient travel
-        # time with LISFLOOD's own sub-stepping mechanism; this changes only
-        # the explicit-reach mode and not any historical adapter case.
-        p["DtSecChannel"] = 300.0
-        source["CalChanMan"] = "set to 1 for explicit static.json manning_n"
-        source["ChanMan"] = "static.json manning_n"
-        source["ChanBottomWidth"] = "static.json width_m"
-        source["ChanDepthThreshold"] = "static.json channel_bankfull_depth_m"
-        source["ChanSdXdY"] = "static.json cross_section_shape=rectangular"
-        source["ChanGrad"] = "static.json slope"
-        source["DtSecChannel"] = (
-            "300 s in explicit reach mode to resolve native kinematic-wave "
-            "propagation within the hourly output step"
-        )
-
     return p, source
 
 
@@ -420,33 +366,23 @@ def write_domain(work: Path, static: dict, params: dict, forcing: list[dict], ti
     for d in (maps, out, lai_dir):
         d.mkdir(parents=True, exist_ok=True)
 
-    # Ordinary cases keep the historical one-cell pit. A case that supplies
-    # the complete explicit reach geometry gets a two-cell channel chain:
-    # runoff is generated only in the upstream cell and must traverse two
-    # native LISFLOOD kinematic-wave reaches before it leaves the outlet.
-    # This makes reach length an actual propagation distance rather than a
-    # storage parameter on a cell that is already the outlet.
-    explicit_routing = "reach_length_m" in static
-    ncols = 2 if explicit_routing else 1
+    # The clone is a lat/lon cell centred on the catchment's latitude, which is
+    # all LISFLOOD reads from its coordinates (the hemisphere of the snowmelt
+    # season). Cell length and area are given explicitly (gridSizeUserDefined).
     cell_deg = 0.1
-    pcr.setclone(1, ncols, cell_deg, -cell_deg / 2.0, latitude + cell_deg / 2.0)
-    one = np.ones((1, ncols))
+    pcr.setclone(1, 1, cell_deg, -cell_deg / 2.0, latitude + cell_deg / 2.0)
+    one = np.ones((1, 1))
 
-    def pcr_map(name: str, kind, value) -> str:
+    def pcr_map(name: str, kind, value: float) -> str:
         path = maps / f"{name}.map"
-        array = np.asarray(value, dtype=float)
-        if array.ndim == 0:
-            array = one * float(array)
-        else:
-            array = np.broadcast_to(array, one.shape).copy()
-        pcr.report(pcr.numpy2pcr(kind, array, -9999), str(path))
+        pcr.report(pcr.numpy2pcr(kind, one * value, -9999), str(path))
         return str(path)
 
     with netCDF4.Dataset(maps / "template.nc", "w") as nc:
         nc.createDimension("lat", 1)
-        nc.createDimension("lon", ncols)
+        nc.createDimension("lon", 1)
         nc.createVariable("lat", "f8", ("lat",))[:] = [latitude]
-        nc.createVariable("lon", "f8", ("lon",))[:] = np.arange(ncols) * cell_deg
+        nc.createVariable("lon", "f8", ("lon",))[:] = [0.0]
         nc.createVariable("mask", "f4", ("lat", "lon"))[:] = one
 
     for prefix in ("laio", "laif", "laii"):
@@ -462,32 +398,19 @@ def write_domain(work: Path, static: dict, params: dict, forcing: list[dict], ti
         "StepStart": "1", "StepEnd": str(len(forcing)), "timestepInit": "1",
         "DtSec": str(TIMESTEP_SECONDS[timestep]), "NumDaysSpinUp": "0",
         "MaskMap": pcr_map("mask", pcr.Boolean, 1),
-        # PCRaster LDD 6 routes east; 5 is a pit/outlet.
-        "Ldd": pcr_map("ldd", pcr.Ldd, [[6.0, 5.0]] if explicit_routing else 5),
+        "Ldd": pcr_map("ldd", pcr.Ldd, 5),
         "Channels": pcr_map("chan", pcr.Boolean, 1),
         "PixelLengthUser": pcr_map("pixleng", pcr.Scalar, CELL_LENGTH_M),
         "PixelAreaUser": pcr_map("pixarea", pcr.Scalar, CELL_AREA_M2),
-        "ChanLength": pcr_map(
-            "chanlength",
-            pcr.Scalar,
-            [[0.5 * float(static["reach_length_m"]), 0.5 * float(static["reach_length_m"])]]
-            if explicit_routing else CHANNEL_LENGTH_M,
-        ),
+        "ChanLength": pcr_map("chanlength", pcr.Scalar, CHANNEL_LENGTH_M),
         "netCDFtemplate": str(maps / "template.nc"),
         "LAIOtherMaps": str(lai_dir / "laio"), "LAIForestMaps": str(lai_dir / "laif"),
         "LAIIrrigationMaps": str(lai_dir / "laii"),
-        # In the two-cell routing case the upstream cell is the 25 km2
-        # contributing catchment. The downstream cell is sealed and receives
-        # no meteorological forcing; it exists only to carry the channel wave.
-        "OtherFraction": pcr_map(
-            "fracother", pcr.Scalar, [[1.0, 0.0]] if explicit_routing else 1.0
-        ),
+        "OtherFraction": pcr_map("fracother", pcr.Scalar, 1.0),
         "ForestFraction": pcr_map("fracforest", pcr.Scalar, 0.0),
         "IrrigationFraction": pcr_map("fracirrigated", pcr.Scalar, 0.0),
         "RiceFraction": pcr_map("fracrice", pcr.Scalar, 0.0),
-        "DirectRunoffFraction": pcr_map(
-            "fracsealed", pcr.Scalar, [[0.0, 1.0]] if explicit_routing else 0.0
-        ),
+        "DirectRunoffFraction": pcr_map("fracsealed", pcr.Scalar, 0.0),
         "WaterFraction": pcr_map("fracwater", pcr.Scalar, 0.0),
         "DrainedFraction": "0",
         # Forest and irrigated soils: required bindings, zero area; given the "other" values.
@@ -611,7 +534,6 @@ def simulate(forcing: list[dict], static: dict, timestep: str) -> tuple[list[dic
             super().dynamic()
             evaporation = self.TaWB + self.TaInterceptionWB + self.ESActWB
             outflow_m3s = np.where(self.AtLastPointC, self.ChanQAvg, 0.0)
-            outlet_m3s = float(np.sum(outflow_m3s))
             m3_to_mm = first(self.M3toMM)
             if water_use:
                 from_groundwater = first(self.abstraction_GW_actual_M3) * m3_to_mm
@@ -622,49 +544,28 @@ def simulate(forcing: list[dict], static: dict, timestep: str) -> tuple[list[dic
             else:
                 from_groundwater = from_channel = short = 0.0
             records.append((
-                first(evaporation), outlet_m3s * self.DtSec * m3_to_mm, first(self.GwLossWB),
+                first(evaporation), first(outflow_m3s) * self.DtSec * m3_to_mm, first(self.GwLossWB),
                 *storage_terms(self, veg_axis[0]), first(self.TotalPrecipitationWB),
                 from_groundwater, from_channel, short, first(self.LZ),
             ))
 
     model = SteppedLisflood()
-    explicit_routing = "reach_length_m" in static
-    if explicit_routing:
-        native_area_km2 = CELL_AREA_M2 / 1.0e6
-        if not math.isclose(
-            float(static["area_km2"]), native_area_km2, rel_tol=0.0, abs_tol=1.0e-9
-        ):
-            raise ValueError(
-                "LISFLOOD explicit routing requires area_km2 to equal its "
-                f"native contributing cell area {native_area_km2:g} km2"
-            )
     veg_axis[0] = model.SoilFraction.dims.index("vegetation")
     initial_storage = sum(storage_terms(model, veg_axis[0]))
     mask = MaskInfo.instance()
 
-    def _upstream_only(value: float):
-        field = mask.in_zero()
-        if explicit_routing:
-            field[...] = 0.0
-            field.reshape(-1)[0] = value
-            return field
-        return field + value
-
     def read_forcing_rows():
         # readmeteo.py's variables, in its units: depths per step, degC.
         i = model.currentTimeStep() - model.firstTimeStep()
-        model.Precipitation = _upstream_only(pr[i] * dt_day * model.PrScaling)
-        # Temperature is harmless on the dry downstream routing cell and is
-        # kept spatially uniform; water inputs/demand belong to the contributing
-        # upstream catchment only.
+        model.Precipitation = mask.in_zero() + pr[i] * dt_day * model.PrScaling
         model.Tavg = mask.in_zero() + tas[i]
-        demand = _upstream_only(pet[i] * dt_day * model.CalEvaporation)
+        demand = mask.in_zero() + pet[i] * dt_day * model.CalEvaporation
         model.ETRef = demand
         model.ESRef = demand.copy()
         model.EWRef = demand.copy()
         if water_use:
             # The water-use module's own demand input, in its units (mm per step).
-            model.IndustrialDemandMM = _upstream_only(abstr[i] * dt_day)
+            model.IndustrialDemandMM = mask.in_zero() + abstr[i] * dt_day
 
     model.readmeteo_module.dynamic = read_forcing_rows
     initialised = time.monotonic()
@@ -707,16 +608,12 @@ def simulate(forcing: list[dict], static: dict, timestep: str) -> tuple[list[dic
         "timestep": timestep,
         "dt_seconds": TIMESTEP_SECONDS[timestep],
         "domain": {
-            "cells": 2 if "reach_length_m" in static else 1,
+            "cells": 1,
             "cell_length_m": CELL_LENGTH_M,
             "cell_area_km2": CELL_AREA_M2 / 1.0e6,
-            "channel_length_m": float(static.get("reach_length_m", CHANNEL_LENGTH_M)),
-            "source": ("static.json reach_length_m" if "reach_length_m" in static else
-                       "the shipped test catchment's 5 km grid; chanlength median"),
-            "ldd": (
-                "upstream channel cell routes east to a downstream pit/outlet"
-                if "reach_length_m" in static else "pit with a channel"
-            ),
+            "channel_length_m": CHANNEL_LENGTH_M,
+            "source": "the shipped test catchment's 5 km grid; chanlength median",
+            "ldd": "pit with a channel",
             "land_use": "rainfed 'other' fraction 1.0",
             "catchment_area_km2": area_km2,
             "catchment_area_enters": "only dis = mrro * area_km2 / 86.4",
