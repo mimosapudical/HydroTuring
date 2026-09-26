@@ -1,5 +1,5 @@
 name: lisflood
-version: "5.0.0-onecell.7"
+version: "5.0.0-onecell.5"
 description: >
   LISFLOOD, the distributed rainfall-runoff model the European Commission's
   Joint Research Centre operates behind the European and Global Flood
@@ -52,11 +52,4 @@ resources: {cpu: 1, memory_gb: 2, gpu: false}
 
 # Existing adapter mappings; no change to model equations.
 needs_static: [canopy_capacity_mm]
-uses_static:
-  - soil_capacity_mm
-  - width_m
-  - cross_section_shape
-  - slope
-  - manning_n
-  - reach_length_m
-  - channel_bankfull_depth_m
+uses_static: [soil_capacity_mm]
