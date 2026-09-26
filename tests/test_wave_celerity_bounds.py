@@ -194,6 +194,16 @@ def test_registered_probe_and_references_are_compatible():
         assert compatibility_issues(registry.find_model(name), probe, case) == []
 
 
+def test_wflow_sbm_is_contract_compatible_with_wave_celerity_probe():
+    probe = registry.find_probe("momentum/wave-celerity-bounds")
+    case = build_case(probe, gate_seeds(probe.id, 1)[0], "short")
+    model = registry.find_model("wflow_sbm")
+    assert compatibility_issues(model, probe, case) == []
+    assert "river_dis" in model.emits_diagnostics
+    for key in ("reach_length_m", "width_m", "slope", "manning_n", "cross_section_shape"):
+        assert key in model.uses_static
+
+
 
 def test_generator_pairs_change_only_reach_length():
     probe = registry.find_probe("momentum/wave-celerity-bounds")
@@ -242,6 +252,20 @@ def test_analytic_measurement_passes_when_celerity_matches_manning():
         _probe(),
         _params(),
     )
+    assert result.passed, result.message
+
+
+def test_native_river_discharge_is_preferred_over_total_discharge():
+    runs = _synthetic_runs()
+    for side in ("short", "long"):
+        run = runs[side]
+        table = run.table.copy()
+        table["river_dis"] = table["dis"]
+        # Deliberately destroy total-discharge timing. The routing criterion
+        # must use the explicitly reported native river diagnostic instead.
+        table["dis"] = 123.0
+        runs[side] = RunResult(run.case, table, run.meta, run.wall_seconds)
+    result = get("wave_celerity_bounds")(runs, _probe(), _params())
     assert result.passed, result.message
 
 
