@@ -733,23 +733,35 @@ function simulate(forcing::Forcing, static::AbstractDict, timestep::AbstractStri
     cell = apply_overrides!(maps, cell, static, capacity, overrides)
     routing_only = forcing.q_in !== nothing
 
+    # These are declared as uses_static, so consume them whenever the case
+    # supplies them, not only on the q_in path.  This keeps the manifest an
+    # honest statement of the adapter contract.
+    if haskey(static, "cross_section_shape")
+        shape = lowercase(strip(String(static["cross_section_shape"])))
+        shape == "rectangular" ||
+            error("wflow_sbm reach geometry currently supports cross_section_shape='rectangular'")
+    end
+    for (key, mapname) in (
+        ("width_m", "wflow_riverwidth"),
+        ("slope", "RiverSlope"),
+        ("manning_n", "N_River"),
+        ("reach_length_m", "wflow_riverlength"),
+    )
+        if haskey(static, key)
+            value = Float64(static[key])
+            value > 0.0 || error("wflow_sbm needs positive $key")
+            maps[mapname] = value
+        end
+    end
+
     if routing_only
-        shape = lowercase(strip(String(get(static, "cross_section_shape", ""))))
-        shape == "rectangular" || error("q_in routing path requires cross_section_shape='rectangular'")
-        width = Float64(static["width_m"])
-        slope = Float64(static["slope"])
-        manning_n = Float64(static["manning_n"])
-        reach_length = Float64(static["reach_length_m"])
-        minimum((width, slope, manning_n, reach_length)) > 0.0 ||
-            error("q_in routing path requires positive width, slope, roughness and reach length")
-        maps["wflow_riverwidth"] = width
-        maps["RiverSlope"] = slope
-        maps["N_River"] = manning_n
+        for key in ("width_m", "cross_section_shape", "slope", "manning_n", "reach_length_m")
+            haskey(static, key) || error("q_in routing path requires static '$key'")
+        end
         # Wflow's kinematic-wave river uses a fixed wetted perimeter based on
-        # half bankfull depth.  Keep the native 1 m bankfull depth; the probe's
-        # wide sections make the difference from the exact rectangular
-        # hydraulic radius a pre-audited small approximation rather than an
-        # adapter-fitted parameter.
+        # half bankfull depth. Keep its native 1 m bankfull depth; the probe's
+        # wide sections make this independently close to the exact rectangular
+        # hydraulic-radius derivative without fitting an adapter parameter.
         maps["RiverDepth"] = MOSELLE.river_depth
     end
 
