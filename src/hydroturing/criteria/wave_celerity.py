@@ -34,6 +34,7 @@ class _Measurement:
     short_variance_h2: float
     long_variance_h2: float
     diffusivity_obs_m2_s: float | None
+    prescribed_base_q_m3s: float
 
 
 def _positive(static: dict[str, Any], key: str, variant: str) -> float:
@@ -97,7 +98,7 @@ def _centroid(
     params: dict,
     variant: str,
     event_column: str,
-) -> tuple[float, float, float]:
+) -> tuple[float, float, float, float]:
     window = make_window(run, probe)
     if "dis" not in window.table:
         raise _ResponseFailure(variant, f"variant '{variant}' does not report dis")
@@ -133,6 +134,14 @@ def _centroid(
     if first < baseline_steps:
         raise ValueError("wave-celerity pulse has too little pre-event baseline")
     base = float(np.mean(discharge[first - baseline_steps:first]))
+    if "q_in" not in window.forcing:
+        raise ValueError("wave celerity needs prescribed forcing column 'q_in'")
+    prescribed = pd.to_numeric(window.forcing["q_in"], errors="coerce").to_numpy(float)
+    if np.any(~np.isfinite(prescribed)):
+        raise ValueError("wave-celerity q_in must be finite")
+    prescribed_base = float(np.mean(prescribed[first - baseline_steps:first]))
+    if prescribed_base <= 0.0:
+        raise ValueError("wave-celerity q_in base state must be positive")
     response_hours = float(params.get("response_hours", 72.0))
     if not np.isfinite(response_hours) or response_hours <= 0:
         raise ValueError("wave-celerity response_hours must be finite and positive")
@@ -171,7 +180,7 @@ def _centroid(
     centres_h = (np.arange(len(response), dtype=float) + 0.5) * window.dt_days * 24.0
     centroid_h = float(np.dot(centres_h, response) / total)
     variance_h2 = float(np.dot((centres_h - centroid_h) ** 2, response) / total)
-    return centroid_h, variance_h2, base
+    return centroid_h, variance_h2, base, prescribed_base
 
 
 def _pair(runs: dict[str, RunResult], probe: ProbeSpec, params: dict, state: str) -> _Measurement:
@@ -200,14 +209,27 @@ def _pair(runs: dict[str, RunResult], probe: ProbeSpec, params: dict, state: str
     if not isinstance(event_columns, dict) or state not in event_columns:
         raise ValueError(f"wave celerity needs an event column for state '{state}'")
     event_column = str(event_columns[state])
-    t_short, var_short_h2, q_short = _centroid(
+    t_short, var_short_h2, q_short, q_in_short = _centroid(
         short, probe, params, short_name, event_column
     )
-    t_long, var_long_h2, q_long = _centroid(
+    t_long, var_long_h2, q_long, q_in_long = _centroid(
         long, probe, params, long_name, event_column
     )
+    if not np.isclose(q_in_short, q_in_long, rtol=0.0, atol=1.0e-12):
+        raise ValueError(f"{state} short/long prescribed q_in bases disagree")
     if not np.isclose(q_short, q_long, rtol=0.01, atol=1.0e-9):
         raise ValueError(f"{state} short/long base discharges disagree")
+    tracking_tolerance = float(params.get("input_tracking_tolerance", 0.01))
+    if not np.isfinite(tracking_tolerance) or tracking_tolerance < 0.0:
+        raise ValueError("input_tracking_tolerance must be finite and non-negative")
+    for variant, q_model in ((short_name, q_short), (long_name, q_long)):
+        if not np.isclose(
+            q_model, q_in_short, rtol=tracking_tolerance, atol=1.0e-9
+        ):
+            raise ValueError(
+                f"{state} {variant} base discharge {q_model:.6g} m3/s does not "
+                f"track prescribed q_in {q_in_short:.6g} m3/s"
+            )
     dt_hours = t_long - t_short
     timing_floor = float(params.get("timing_floor_hours", 0.05))
     if not np.isfinite(dt_hours) or dt_hours <= timing_floor:
@@ -222,6 +244,7 @@ def _pair(runs: dict[str, RunResult], probe: ProbeSpec, params: dict, state: str
             var_short_h2,
             var_long_h2,
             None,
+            q_in_short,
         )
 
     # Both model outputs are read at the outlet, so the paired propagation
@@ -252,6 +275,7 @@ def _pair(runs: dict[str, RunResult], probe: ProbeSpec, params: dict, state: str
         var_short_h2,
         var_long_h2,
         diffusivity_obs,
+        q_in_short,
     )
 
 
@@ -316,6 +340,7 @@ def wave_celerity_bounds(
                 item.long_variance_h2 - item.short_variance_h2
             ),
             "paired_diffusivity_m2_s": item.diffusivity_obs_m2_s,
+            "prescribed_base_q_m3s": item.prescribed_base_q_m3s,
         }
 
     c = [m.c_obs for m in measured]
