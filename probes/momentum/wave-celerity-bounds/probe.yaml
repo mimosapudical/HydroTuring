@@ -47,7 +47,13 @@ criteria:
         medium: _pulse_medium
         high: _pulse_high
       response_hours: 72
+      # 5% is the pre-declared physical allowance from proposal #148. The
+      # 256-cell Saint-Venant gate reference clears it without widening the
+      # bound; the denominator is c_kin=dQ/dA, strictly positive because the
+      # generator enforces Q>0, S>0 and a wet rectangular section.
       relative_tolerance: 0.05
+      # Identification precondition: the model's settled outlet must represent
+      # the prescribed q_in operating state before transient celerity is scored.
       base_flow_relative_tolerance: 0.01
       baseline_hours: 12
       min_response_fraction: 0.0001
@@ -59,6 +65,8 @@ baselines:
     - reference_saint_venant
   must_fail:
     reference_fixed_celerity: wave_celerity_bounds
+  must_fail_only:
+    - reference_fixed_celerity
 
 provenance: >
   Synthetic hourly prescribed river inflow and seeded rectangular reach
