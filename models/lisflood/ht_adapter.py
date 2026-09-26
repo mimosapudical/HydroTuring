@@ -382,12 +382,21 @@ def catchment_parameters(static: dict) -> tuple[dict, dict]:
         p["ChanDepthThreshold"] = bankfull
         p["ChanSdXdY"] = 0.0
         p["ChanGrad"] = slope
+        # The hourly model step otherwise gives the implicit channel solver a
+        # single 3600 s routing step.  Resolve kilometre-scale transient travel
+        # time with LISFLOOD's own sub-stepping mechanism; this changes only
+        # the explicit-reach mode and not any historical adapter case.
+        p["DtSecChannel"] = 300.0
         source["CalChanMan"] = "set to 1 for explicit static.json manning_n"
         source["ChanMan"] = "static.json manning_n"
         source["ChanBottomWidth"] = "static.json width_m"
         source["ChanDepthThreshold"] = "static.json channel_bankfull_depth_m"
         source["ChanSdXdY"] = "static.json cross_section_shape=rectangular"
         source["ChanGrad"] = "static.json slope"
+        source["DtSecChannel"] = (
+            "300 s in explicit reach mode to resolve native kinematic-wave "
+            "propagation within the hourly output step"
+        )
 
     return p, source
 
