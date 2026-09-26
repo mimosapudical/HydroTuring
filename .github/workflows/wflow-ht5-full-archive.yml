@@ -1,0 +1,62 @@
+name: wflow-ht5-full-archive
+
+on:
+  push:
+    branches: [probe-wave-celerity-bounds]
+    paths:
+      - '.github/workflows/wflow-ht5-full-archive.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install
+        run: pip install -e '.[dev]'
+      - name: Re-archive Wflow ht.5 on every probe
+        run: |
+          set +e
+          ht run --model wflow_sbm --gate-seeds \
+            --csv models/result.csv \
+            --json /tmp/wflow-ht5.json \
+            --markdown | tee /tmp/wflow-ht5.txt
+          code=${PIPESTATUS[0]}
+          set -e
+          if [ "$code" -eq 2 ]; then
+            echo "::error::Wflow archive run hit a harness/adapter ERROR"
+            exit 2
+          fi
+          python - <<'PY'
+          import csv
+          rows=list(csv.DictReader(open("models/result.csv", encoding="utf-8")))
+          probes=[r for r in rows if r["model"]=="wflow_sbm" and r["version"]=="1.0.4-ht.5" and "(adapter contract)" not in r["probe"]]
+          ids={r["probe"] for r in probes}
+          print("HT5_ROWS", len(probes), "UNIQUE_PROBES", len(ids))
+          if len(ids) != 34:
+              raise SystemExit(f"expected 34 unique probe rows for ht.5, got {len(ids)}")
+          scored=[r for r in probes if r["verdict"] in {"PASS","FAIL"}]
+          passed=[r for r in scored if r["verdict"]=="PASS"]
+          failed=[r for r in scored if r["verdict"]=="FAIL"]
+          print("HT5_SCORED", len(scored), "PASS", len(passed), "FAIL", len(failed))
+          print("HT5_FAILURES", [(r["probe"],r["reason"]) for r in failed])
+          wave=[r for r in probes if r["probe"]=="momentum/wave-celerity-bounds"]
+          print("HT5_WAVE", wave)
+          PY
+      - name: Commit archive rows
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add models/result.csv
+          git diff --cached --quiet && exit 0
+          git commit -m "results: archive wflow_sbm ht.5"
+          git push origin HEAD:probe-wave-celerity-bounds
