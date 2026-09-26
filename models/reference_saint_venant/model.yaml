@@ -7,7 +7,9 @@ description: >
   non-equilibrium state. Daily cases retain the settled-state interior-gauge
   path; sub-daily cases continuously advance the same equations through each
   output interval and report the reach outlet so paired reach lengths measure
-  the full propagation-distance difference. It never evaluates or inverts the Manning
+  the full propagation-distance difference. Paired transient reaches use a
+  common approximately 80 m finite-volume cell size so reach length does not
+  also change numerical resolution. It never evaluates or inverts the Manning
   normal-depth formula.
 authors: ["HydroTuring maintainers"]
 license: PolyForm-Noncommercial-1.0.0
