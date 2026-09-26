@@ -344,10 +344,10 @@ def test_non_rectangular_geometry_is_rejected():
         get("wave_celerity_bounds")(runs, _probe(), _params())
 
 
-def test_registered_probe_and_references_are_compatible():
+def test_registered_probe_and_routing_models_are_compatible():
     probe = registry.find_probe("momentum/wave-celerity-bounds")
     case = build_case(probe, gate_seeds(probe.id, 1)[0], "short")
-    for name in ("reference_saint_venant", "reference_fixed_celerity"):
+    for name in ("reference_saint_venant", "reference_fixed_celerity", "wflow_sbm"):
         assert compatibility_issues(registry.find_model(name), probe, case) == []
 
 
@@ -456,6 +456,25 @@ def test_generator_keeps_the_linearization_subcritical_and_small():
                 atol=1.0e-12,
             )
             assert np.all(scored["pr"].to_numpy(float) == 0.0)
+
+
+def test_wflow_declared_kinematic_law_is_inside_frozen_allowance():
+    probe = registry.find_probe("momentum/wave-celerity-bounds")
+    beta = 0.6
+    bankfull_depth_m = 1.0
+    for seed in gate_seeds(probe.id, probe.n_seeds):
+        case = build_case(probe, seed, "short")
+        width = float(case.static["width_m"])
+        slope = float(case.static["slope"])
+        manning_n = float(case.static["manning_n"])
+        wetted_perimeter = width + bankfull_depth_m
+        alpha = (
+            manning_n * wetted_perimeter ** (2.0 / 3.0) / slope ** 0.5
+        ) ** beta
+        for q in STATE_Q:
+            wflow_c = 1.0 / (alpha * beta * q ** (beta - 1.0))
+            exact_c = _c_kin(q, width=width, slope=slope, n=manning_n)
+            assert abs(wflow_c - exact_c) / exact_c < 0.02
 
 
 def test_generator_stays_inside_wide_channel_allowance():
