@@ -1,0 +1,42 @@
+name: wave-celerity-wflow-audit
+
+on:
+  push:
+    branches: [probe-wave-celerity-bounds]
+    paths:
+      - '.github/workflows/wave-celerity-wflow-audit.yml'
+      - 'models/wflow_sbm/**'
+      - 'probes/momentum/wave-celerity-bounds/**'
+      - 'src/hydroturing/criteria/wave_celerity.py'
+      - 'tests/test_wave_celerity_bounds.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install
+        run: pip install -e '.[dev]'
+      - name: Validate and focused tests
+        run: |
+          ht validate
+          pytest -q tests/test_wave_celerity_bounds.py
+      - name: Run Wflow on wave celerity
+        run: |
+          set +e
+          ht run --model wflow_sbm \
+                 --probe momentum/wave-celerity-bounds \
+                 --gate-seeds \
+                 --markdown | tee /tmp/wflow-wave.txt
+          code=${PIPESTATUS[0]}
+          cat /tmp/wflow-wave.txt
+          exit "$code"
