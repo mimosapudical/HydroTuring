@@ -164,6 +164,18 @@ so the same paired design can in principle separate translation (`c`) from
 dispersion (`D`) without reading model internals. #148 keeps the verdict on
 celerity only.
 
+Temporal moments and cumulants are established tools in flood-routing theory,
+not a new law introduced by this probe. Åkesson et al. (2015,
+https://doi.org/10.1002/2014WR016279) derived central temporal moments from a
+kinematic-diffusive wave description to study stage-dependent hydraulic
+response in stream networks, and Romanowicz & Doroszkiewicz (2019,
+https://doi.org/10.26491/MHWM/95023) review the use of impulse-response
+cumulants for linearized Saint-Venant routing. The contribution here is the
+controlled **counterfactual pairing**: evaluate the same black-box model under
+the same forcing and hydraulic state at two reach lengths, then difference
+those moments so the unknown common land/storage response cancels before the
+hydraulic derivative is tested across states.
+
 This interpretation also has an empirical analogue. Allen et al. (2018,
 https://doi.org/10.1029/2018GL077914) estimated river-wave celerity from paired
 upstream/downstream gauges by dividing reach distance by an observed hydrograph
