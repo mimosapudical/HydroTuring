@@ -41,7 +41,9 @@ def simulate(forcing: list[dict], static: dict) -> list[dict]:
 
     dt_s = _dt_seconds(forcing)
     q = np.asarray([
-        max(float(row["pr"]) - float(row["pet"]), 0.0)
+        float(row["q_in"])
+        if row.get("q_in") not in (None, "")
+        else max(float(row["pr"]) - float(row["pet"]), 0.0)
         * 1.0e-3 * area_km2 * 1.0e6 / SECONDS_PER_DAY
         for row in forcing
     ], dtype=float)
