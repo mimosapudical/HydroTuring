@@ -19,6 +19,15 @@ hydrograph, but none identifies the transient channel-wave speed itself.
 | `momentum/routing-causality` (accepted proposal) | routed flow does not anticipate its driver | any positive but physically wrong propagation speed |
 | `momentum/froude-regime` (accepted proposal) | the reported hydraulic state stays in an admissible regime | state-dependent wave speed inside that regime |
 
+The physical gap is also one order deeper than a new state constraint. The
+neighbouring steady probes test values of the hydraulic state or an equilibrium
+constitutive relation. #148 tests the **local dynamic derivative** of that
+relation: the characteristic speed seen by a small perturbation. A model can
+sit on a Manning-consistent steady state and still use an unrelated transient
+router. In that sense the probe asks whether the model's transient Jacobian is
+consistent with the physics that defines its equilibrium state, not merely
+whether the equilibrium itself looks plausible.
+
 The identification step is the contribution as much as the final inequality.
 A single rainfall-to-runoff lag cannot separate channel travel from the common
 runoff-generation and storage clock. In the controlled paired experiment, write
