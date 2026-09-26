@@ -32,7 +32,11 @@ MODEL = {"name": "reference_saint_venant", "version": "1.1.0"}
 SECONDS_PER_DAY = 86400.0
 GRAVITY = 9.80665
 N_CELLS = 64
-TRANSIENT_CELLS = 256
+# Paired transient reaches use the same physical mesh scale.  A fixed cell
+# count would give the 4 km reach five times finer dx than the 20 km reach,
+# changing both numerical diffusion and the CFL cost between counterfactuals.
+# 80 m gives exactly 50/250 cells for the production 4/20 km pair.
+TRANSIENT_DX_M = 80.0
 CFL = 0.45
 MIN_DEPTH_M = 1.0e-4
 MAX_STEPS = 120_000
@@ -254,32 +258,36 @@ def simulate_transient(
         raise ValueError("the generated Saint-Venant reach must stay wet")
 
     # Reach the base state with the same equations, first on the established
-    # 64-cell grid and then on the production 256-cell transient grid. The
-    # interpolation is only an initial guess; the fine state is relaxed again
-    # before any transient is measured.
-    coarse_h, coarse_q, coarse_diag = solve_steady_reach(
+    # 64-cell initialization grid and then on a transient grid with a common
+    # physical cell size across paired reach lengths.  Matching dx is part of
+    # the counterfactual design: short and long variants must not acquire
+    # different numerical diffusion merely because their lengths differ.
+    initial_h, initial_q, initial_diag = solve_steady_reach(
         base_inflow, width_m, slope, manning_n, reach_length_m, n_cells=N_CELLS
     )
-    x_coarse = (np.arange(N_CELLS, dtype=float) + 0.5) / N_CELLS
-    x_fine = (np.arange(TRANSIENT_CELLS, dtype=float) + 0.5) / TRANSIENT_CELLS
-    fine_guess = (
-        np.interp(x_fine, x_coarse, coarse_h),
-        np.interp(x_fine, x_coarse, coarse_q),
+    transient_cells = max(8, int(math.ceil(reach_length_m / TRANSIENT_DX_M)))
+    x_initial = (np.arange(N_CELLS, dtype=float) + 0.5) / N_CELLS
+    x_transient = (
+        np.arange(transient_cells, dtype=float) + 0.5
+    ) / transient_cells
+    transient_guess = (
+        np.interp(x_transient, x_initial, initial_h),
+        np.interp(x_transient, x_initial, initial_q),
     )
-    depth, unit_discharge, fine_diag = solve_steady_reach(
+    depth, unit_discharge, transient_diag = solve_steady_reach(
         base_inflow,
         width_m,
         slope,
         manning_n,
         reach_length_m,
-        initial_state=fine_guess,
-        n_cells=TRANSIENT_CELLS,
+        initial_state=transient_guess,
+        n_cells=transient_cells,
     )
-    coarse_diag["phase"] = "coarse_initialization"
-    fine_diag["phase"] = "fine_initialization"
+    initial_diag["phase"] = "initialization_grid"
+    transient_diag["phase"] = "transient_grid_initialization"
 
-    dx_m = reach_length_m / TRANSIENT_CELLS
-    outlet = TRANSIENT_CELLS - 1
+    dx_m = reach_length_m / transient_cells
+    outlet = transient_cells - 1
     rows: list[dict] = []
     advance_steps = 0
     transient_started = False
@@ -323,11 +331,13 @@ def simulate_transient(
         })
 
     diagnostics = [
-        coarse_diag,
-        fine_diag,
+        initial_diag,
+        transient_diag,
         {
             "phase": "transient",
-            "cells": TRANSIENT_CELLS,
+            "cells": transient_cells,
+            "dx_m": dx_m,
+            "target_dx_m": TRANSIENT_DX_M,
             "output_step_s": output_step_s,
             "advance_steps": advance_steps,
             "cfl": CFL,
