@@ -685,7 +685,7 @@ function simulate(forcing::Forcing, static::AbstractDict, timestep::AbstractStri
     river_inflow = forcing.q_in !== nothing
     if river_inflow
         all(isfinite, forcing.q_in) || error("q_in must be finite")
-        all(>=(0.0), forcing.q_in) || error("q_in must be non-negative for this routing contract")
+        all(q -> q >= 0.0, forcing.q_in) || error("q_in must be non-negative for this routing contract")
         push!(series, "river_inflow" => forcing.q_in)
     end
     write_forcing(joinpath(workdir, "forcing.nc"), cell, stamps, series)
