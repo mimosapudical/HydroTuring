@@ -103,10 +103,15 @@ fields used by the separate routing-lag probe, not this probe's
 
 `reference_saint_venant` is the trusted in-repository numerical reference,
 not the independent submitted-model evidence required by
-`docs/writing-a-probe.md`. Wflow was audited first but rejected for this role:
-its one-cell adapter reports total outlet flow dominated by overland and lateral
-subsurface routing, so its public discharge does not isolate the river wave
-this probe measures.
+`docs/writing-a-probe.md`. Wflow was audited first but rejected for this role.
+Its native river `q_av` was tested separately from total catchment runoff, with
+the declared length, width, slope and Manning roughness wired into Wflow's
+existing river kinematic wave. The short and long cases nevertheless settled
+to different base river discharges before the celerity criterion could be
+evaluated. In this one-cell land/river/outlet schematisation, changing reach
+geometry changes the hydraulic base state as well as propagation distance, so
+it is not the otherwise-identical paired experiment this probe requires. No
+Wflow PASS row is claimed.
 
 LISFLOOD was also audited as an independent candidate and rejected
 rather than tuned to pass. Wiring the declared geometry into its native
@@ -119,6 +124,11 @@ or hourly timing quantisation. No LISFLOOD PASS row is claimed or archived.
 
 The independent submitted-physical-model evidence required by
 `docs/writing-a-probe.md` remains the outstanding merge prerequisite.
+Accepted model proposal #132, mizuRoute, is a natural candidate because it is a
+routing-only physical model with native hourly reach discharge and explicit
+kinematic-wave routing, but it is still open and unimplemented in this
+repository. This probe does not claim its result in advance or take ownership
+of that separate model contribution.
 
 ## Reproduction
 
