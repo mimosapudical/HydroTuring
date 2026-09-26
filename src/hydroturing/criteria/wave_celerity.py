@@ -96,22 +96,31 @@ def _centroid(
     event_column: str,
 ) -> tuple[float, float]:
     window = make_window(run, probe)
-    if "dis" not in window.table:
-        raise _ResponseFailure(variant, f"variant '{variant}' does not report dis")
-    discharge = pd.to_numeric(window.table["dis"], errors="coerce").to_numpy(float)
+    discharge_name = "river_dis" if "river_dis" in window.table else "dis"
+    if discharge_name not in window.table:
+        raise _ResponseFailure(
+            variant, f"variant '{variant}' does not report river_dis or dis"
+        )
+    discharge = pd.to_numeric(
+        window.table[discharge_name], errors="coerce"
+    ).to_numpy(float)
     if len(discharge) != len(window.forcing):
         raise _ResponseFailure(
             variant,
             f"variant '{variant}' returned {len(discharge)} discharge rows for "
             f"{len(window.forcing)} forcing rows",
-            {"discharge_rows": len(discharge), "forcing_rows": len(window.forcing)},
+            {
+                "discharge_column": discharge_name,
+                "discharge_rows": len(discharge),
+                "forcing_rows": len(window.forcing),
+            },
         )
     nonfinite = int((~np.isfinite(discharge)).sum())
     if nonfinite:
         raise _ResponseFailure(
             variant,
             f"variant '{variant}' has {nonfinite} non-finite discharge values",
-            {"nonfinite_count": nonfinite},
+            {"discharge_column": discharge_name, "nonfinite_count": nonfinite},
         )
 
     marker = event_column
@@ -148,7 +157,12 @@ def _centroid(
         raise _ResponseFailure(
             variant,
             f"variant '{variant}' has no measurable positive response",
-            {"baseline_discharge_m3s": base, "response_peak_m3s": 0.0},
+            {
+                "discharge_column": discharge_name,
+                "discharge_column": discharge_name,
+                "baseline_discharge_m3s": base,
+                "response_peak_m3s": 0.0,
+            },
         )
     # Use response magnitude relative to the base flow as a simple non-degeneracy guard.
     response_ratio = float(response.max()) / max(abs(base), 1.0e-12)
