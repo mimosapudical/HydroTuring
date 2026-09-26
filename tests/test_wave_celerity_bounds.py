@@ -258,6 +258,55 @@ def test_centroid_pair_recovers_state_dependent_celerity_under_hayami_diffusion(
         assert abs(diag["relative_residual"]) < 0.05
 
 
+
+def test_hayami_diffusion_biases_peak_lag_but_not_first_moment():
+    """Peak timing is shape-sensitive; the first temporal moment identifies translation."""
+    peak_errors = []
+    for q in STATE_Q:
+        celerity = _c_kin(q)
+        diffusivity = 5.0 * q / (2.0 * 75.0 * 0.0012)
+        peak_h = []
+        centroid_h = []
+        for length in (4000.0, 20000.0):
+            kernel = _hayami_kernel(
+                np.arange(60, dtype=float) + 0.5,
+                length,
+                celerity,
+                diffusivity,
+            )
+            response = np.convolve(np.ones(6, dtype=float), kernel)
+            centres = np.arange(len(response), dtype=float) + 0.5
+            peak_h.append(float(centres[int(np.argmax(response))]))
+            centroid_h.append(float(np.dot(centres, response) / response.sum()))
+
+        centroid_c = 16000.0 / ((centroid_h[1] - centroid_h[0]) * 3600.0)
+        assert abs(centroid_c / celerity - 1.0) < 0.05
+
+        peak_dt_h = peak_h[1] - peak_h[0]
+        assert peak_dt_h > 0.0
+        peak_c = 16000.0 / (peak_dt_h * 3600.0)
+        peak_errors.append(abs(peak_c / celerity - 1.0))
+
+    # At least one state is badly biased if a peak index is used as the clock.
+    assert max(peak_errors) > 0.20
+
+
+def test_generated_manning_characteristic_speed_has_resolved_state_ordering():
+    probe = registry.find_probe("momentum/wave-celerity-bounds")
+    for seed in gate_seeds(probe.id, probe.n_seeds):
+        case = build_case(probe, seed, "short")
+        width = float(case.static["width_m"])
+        slope = float(case.static["slope"])
+        manning_n = float(case.static["manning_n"])
+        celerities = [
+            _c_kin(q, width=width, slope=slope, n=manning_n)
+            for q in STATE_Q
+        ]
+        for left, right in zip(celerities, celerities[1:]):
+            assert right > left
+            assert right - left > 0.05 * max(left, right)
+
+
 def test_criterion_is_registered_as_paired():
     assert is_paired("wave_celerity_bounds")
 
