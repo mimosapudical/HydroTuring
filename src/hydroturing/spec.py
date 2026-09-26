@@ -41,6 +41,8 @@ DIAG_VARS = ("ts", "tsoil_layer", "stage", "lwsnl", "csnow")
 
 UNITS = {
     "pr": "mm day-1",
+    # Prescribed upstream river inflow is forcing, not a model-emitted flux.
+    "q_in": "m3 s-1",
     "evspsbl": "mm day-1",
     "mrro": "mm day-1",
     "dis": "m3 s-1",
